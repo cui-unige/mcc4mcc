@@ -18,15 +18,9 @@ RUN true \
  && make install \
  && cd .. \
  && rm -rf libsdd \
- && git clone https://github.com/USCiLab/cereal.git \
- && cd cereal \
- && cmake . \
- && make \
- && make install \
- && cd .. \
- && rm -rf cereal \
  && git clone https://github.com/ahamez/pnmc.git \
  && cd pnmc \
+ && git submodule update --init --recursive \
  && cmake . \
  && make \
  && make install \
