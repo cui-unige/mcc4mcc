@@ -5,7 +5,6 @@ RUN true \
         autoconf \
         automake \
         build-base \
-        clang \
         git \
         libtool \
         python3-dev \
@@ -14,13 +13,13 @@ RUN true \
         libstdc++ \
         python3 \
  && git clone https://gitlab.lrde.epita.fr/spot/spot.git \
- && cd spot \
- && autoreconf -fi \
- && ./configure \
- && make \
- && make install \
- && cd .. \
- && rm -rf spot \
+    && cd spot \
+    && autoreconf -fi \
+    && ./configure \
+    && make \
+    && make install \
+    && cd .. \
+    && rm -rf spot \
  && apk del .build-deps \
  && true
 
