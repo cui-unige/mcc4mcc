@@ -10,8 +10,6 @@ RUN true \
  && apk add --no-cache \
         bash \
         openjdk8-jre-base \
-&& true
-RUN true \
  && git clone https://github.com/Z3Prover/z3.git \
     && mkdir -p z3/_build \
     && cd z3/_build \
@@ -19,15 +17,11 @@ RUN true \
     && make install \
     && cd ../.. \
     && rm -rf z3 \
-&& true
-RUN true \
  && curl https://yanntm.github.io/ITS-commandline/itscl_linux.tgz \
          --output itscl_linux.tgz \
     && mkdir -p /usr/share/itscl \
     && tar xf itscl_linux.tgz -C /usr/share/itscl --strip-components=1 \
     && rm -f itscl_linux.tgz \
-&& true
-RUN true \
  && apk del .build-deps \
  && true
 
