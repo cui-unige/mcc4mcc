@@ -1,7 +1,20 @@
 FROM alpine:edge
 
 RUN true \
- && false
+ && apk add --no-cache --virtual .build-deps \
+        curl \
+        tree \
+ && apk add --no-cache \
+        bash \
+&& true
+RUN true \
+ && curl http://www-dssz.informatik.tu-cottbus.de/track/download.php?id=200 \
+         --output marcie.tar.gz \
+    && tar xf marcie.tar.gz \
+            -C /usr/local/ \
+            --strip-components=1 \
+    && rm marcie.tar.gz \
+&& true
 
 ENTRYPOINT marcie
 CMD [ --help ]
