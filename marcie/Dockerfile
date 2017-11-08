@@ -3,7 +3,6 @@ FROM alpine:edge
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         curl \
-        tree \
  && apk add --no-cache \
         bash \
  && curl http://www-dssz.informatik.tu-cottbus.de/track/download.php?id=200 \
