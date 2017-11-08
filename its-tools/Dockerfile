@@ -1,27 +1,37 @@
-FROM mcc/ltsmin
+FROM alpine:edge
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
+        build-base \
+        cmake \
         curl \
         git \
-        tree \
+        python \
  && apk add --no-cache \
         bash \
         openjdk8-jre-base \
+&& true
+RUN true \
+ && git clone https://github.com/Z3Prover/z3.git \
+    && mkdir -p z3/_build \
+    && cd z3/_build \
+    && cmake .. \
+    && make install \
+    && cd ../.. \
+    && rm -rf z3 \
+&& true
+RUN true \
  && curl https://yanntm.github.io/ITS-commandline/itscl_linux.tgz \
          --output itscl_linux.tgz \
- && tar xf itscl_linux.tgz \
- && rm -f itscl_linux.tgz \
- && curl https://yanntm.github.io/ITS-Tools-Dependencies/z3.tgz \
-         --output z3.tgz \
- && tar xf z3.tgz \
- && rm -f z3.tgz \
- && curl https://yanntm.github.io/LTSmin-BinaryBuilds/ltsmin_linux_64.tar.gz \
-         --output ltsmin_linux_64.tar.gz \
- && tar xf ltsmin_linux_64.tar.gz \
- && rm -f ltsmin_linux_64.tar.gz \
+    && mkdir -p /usr/share/itscl \
+    && tar xf itscl_linux.tgz -C /usr/share/itscl --strip-components=1 \
+    && rm -f itscl_linux.tgz \
+&& true
+RUN true \
  && apk del .build-deps \
- && false
+ && true
 
-ENTRYPOINT its-tools
+ADD its /usr/local/bin/
+
+ENTRYPOINT its
 CMD [ --help ]
