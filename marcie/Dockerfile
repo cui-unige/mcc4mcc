@@ -6,8 +6,6 @@ RUN true \
         tree \
  && apk add --no-cache \
         bash \
-&& true
-RUN true \
  && curl http://www-dssz.informatik.tu-cottbus.de/track/download.php?id=200 \
          --output marcie.tar.gz \
     && tar xf marcie.tar.gz \
