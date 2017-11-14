@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -10,7 +10,7 @@ RUN true \
  && apk add --no-cache \
         bash \
         openjdk8-jre-base \
- && git clone https://github.com/Z3Prover/z3.git \
+ && git clone --depth=1 https://github.com/Z3Prover/z3.git \
     && mkdir -p z3/_build \
     && cd z3/_build \
     && cmake .. \
@@ -25,7 +25,7 @@ RUN true \
  && apk del .build-deps \
  && true
 
-ADD its /usr/local/bin/
+COPY its /usr/local/bin/
 
-ENTRYPOINT its
-CMD [ --help ]
+ENTRYPOINT [ "its" ]
+CMD [ "--help" ]
