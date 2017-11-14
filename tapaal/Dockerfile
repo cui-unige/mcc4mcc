@@ -1,6 +1,6 @@
-FROM alpine:edge
+FROM alpine
 
-ADD Makefile /Makefile
+COPY Makefile /Makefile
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -18,7 +18,7 @@ RUN true \
         bash \
         boost \
         libstdc++ \
- && git clone https://github.com/kerrickstaley/lp_solve.git \
+ && git clone --depth=1 https://github.com/kerrickstaley/lp_solve.git \
     && cd lp_solve/lpsolve55 \
     && sh ccc \
     && install bin/ux64/liblpsolve55.a  /usr/local/lib/ \
@@ -29,7 +29,7 @@ RUN true \
     && rm -rf lp_solve \
  && bzr branch lp:verifypn \
     && rm verifypn/makefile* \
-    && cp Makefile verifypn/ \
+    && cp /Makefile verifypn/ \
     && cd verifypn \
     && rm -rf lpsolve \
     && sed -i -e "s|../lpsolve|lpsolve|g" $(find . -name "*.*pp") $(find . -name "*.h") \
@@ -38,9 +38,9 @@ RUN true \
     && install -m 755 verifypn-linux64 /usr/local/bin/verifypn \
     && cd .. \
     && rm -rf verifypn \
- && rm Makefile \
+ && rm /Makefile \
  && apk del .build-deps \
  && true
 
-ENTRYPOINT verifypn
-CMD [ --help ]
+ ENTRYPOINT [ "verifypn" ]
+ CMD [ "--help" ]
