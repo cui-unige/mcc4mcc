@@ -1,10 +1,13 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
+        autoconf \
+        automake \
+        bison \
         build-base \
-        clang \
         curl \
+        gengetopt \
         make \
         texinfo \
  && apk add --no-cache \
@@ -28,12 +31,13 @@ RUN true \
     && find src/ -type f -exec sed -i".bak" "s/u_short/unsigned short/g" {} \; \
     && sed -i".bak" "s/defined(__linux__)/defined(_FPU_GETCW)/g" src/Siphon/lola2minisat.cc \
     && sed -i".bak" "s/defined(__linux__)/defined(_FPU_GETCW)/g" src/ThirdParty/minisat/utils/System.h \
-    && ./configure CC=clang CXX=clang++ --prefix=/usr \
+    && autoreconf -vfi \
+    && ./configure --prefix=/usr \
     && make install \
     && cd .. \
     && rm -rf lola-2.0* \
  && apk del .build-deps \
  && true
 
-ENTRYPOINT lola
-CMD [ --help ]
+ENTRYPOINT [ "lola" ]
+CMD [ "--help" ]
