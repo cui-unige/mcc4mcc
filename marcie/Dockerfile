@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -13,5 +13,5 @@ RUN true \
     && rm marcie.tar.gz \
 && true
 
-ENTRYPOINT marcie
-CMD [ --help ]
+ENTRYPOINT [ "marcie" ]
+CMD [ "--help" ]
