@@ -1,4 +1,4 @@
-#! /usr/bin/env python3.4
+#! /usr/bin/env python3
 
 import json
 import os
@@ -90,7 +90,7 @@ except Exception as e:
         # , '--json=stats'
         , '--input=pnml'
         , '--count-tokens'
-        , model_file]  
+        , model_file]
 
   if known:
 
@@ -118,7 +118,7 @@ except Exception as e:
       printerr('pnmc failed with return code ' + str(ret))
       print('CANNOT COMPUTE')
       sys.exit(0)
-    
+
     while not os.path.exists(results_file):
       time.sleep(1/10) # 1/10 second
 
