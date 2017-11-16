@@ -18,6 +18,8 @@ dependencies = {
   "lua >= 5.1",
   "argparse",
   "lustache",
+  "lua-cjson",
+  "luasocket",
   "luafilesystem",
 }
 

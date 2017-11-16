@@ -1,9 +1,16 @@
 version: "2"
 services:
+  docker:
+    image: shipyard/docker-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
   mcc:
     build:
       context: .
       dockerfile: Dockerfile
     entrypoint: mcc
+    environment:
+      - BK_EXAMINATION=${BK_EXAMINATION}
+      - BK_TOOL=${BK_TOOL}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/mcc-data
