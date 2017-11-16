@@ -27,5 +27,6 @@ RUN true \
 
 COPY its /usr/local/bin/
 
+VOLUME [ "/mcc-data" ]
 ENTRYPOINT [ "its" ]
 CMD [ "--help" ]

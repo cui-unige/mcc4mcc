@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -8,47 +8,36 @@ RUN true \
         git \
  && apk add --no-cache \
         bash \
+        python3 \
         libstdc++ \
- && git clone https://github.com/ahamez/libsdd.git \
-<<<<<<< HEAD
-    && cd libsdd \
-    && cmake . \
-    && make \
+ && git clone --depth=1 https://github.com/ahamez/libsdd.git \
+    && mkdir -p libsdd/_build \
+    && cd libsdd/_build \
+    && cmake .. \
     && make install \
-    && cd .. \
+    && cd ../.. \
     && rm -rf libsdd \
- && git clone https://github.com/USCiLab/cereal.git \
-    && cd cereal \
-    && cmake . \
-    && make \
+ # && git clone --depth=1 https://github.com/ahamez/caesar.sdd.git \
+ #    && mkdir -p caesar.sdd/_build \
+ #    && cd caesar.sdd/_build \
+ #    && cmake .. \
+ #    && make install \
+ #    && cd ../.. \
+ #    && rm -rf caesar.sdd \
+ && git clone --depth=1 https://github.com/ahamez/pnmc.git \
+    && mkdir -p pnmc/_build \
+    && cd pnmc/_build \
+    && git submodule update --init --recursive \
+    && cmake .. \
     && make install \
-    && cd .. \
-    && rm -rf cereal \
- && git clone https://github.com/ahamez/pnmc.git \
-    && cd pnmc \
-    && cmake . \
-    && make \
-    && make install \
-    && cd .. \
+    && cd ../.. \
     && rm -rf pnmc \
-=======
- && cd libsdd \
- && cmake . \
- && make \
- && make install \
- && cd .. \
- && rm -rf libsdd \
- && git clone https://github.com/ahamez/pnmc.git \
- && cd pnmc \
- && git submodule update --init --recursive \
- && cmake . \
- && make \
- && make install \
- && cd .. \
- && rm -rf pnmc \
->>>>>>> 39c5b73c7337f012d9241ea2b00d421b85e2649d
  && apk del .build-deps \
  && true
 
-ENTRYPOINT pnmc
-CMD [ --help ]
+COPY nupn.py /usr/local/bin/nupn.py
+COPY pnmc.py /usr/local/bin/pnmc.py
+
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "pnmc.py" ]
+CMD [ "--help" ]

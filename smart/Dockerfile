@@ -1,7 +1,8 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && false
 
-ENTRYPOINT smart
-CMD [ --help ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "smart" ]
+CMD [ "--help" ]

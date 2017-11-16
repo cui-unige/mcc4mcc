@@ -1,7 +1,8 @@
-FROM alpine:edge
+FROM alpine
 
 RUN true \
  && false
 
-ENTRYPOINT greatspn
-CMD [ --help ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "greatspn" ]
+CMD [ "--help" ]

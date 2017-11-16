@@ -17,5 +17,6 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
- ENTRYPOINT [ "tina" ]
- CMD [ "--help" ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "tina" ]
+CMD [ "--help" ]

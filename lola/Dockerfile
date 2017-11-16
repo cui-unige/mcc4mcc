@@ -31,7 +31,7 @@ RUN true \
     && find src/ -type f -exec sed -i".bak" "s/u_short/unsigned short/g" {} \; \
     && sed -i".bak" "s/defined(__linux__)/defined(_FPU_GETCW)/g" src/Siphon/lola2minisat.cc \
     && sed -i".bak" "s/defined(__linux__)/defined(_FPU_GETCW)/g" src/ThirdParty/minisat/utils/System.h \
-    && autoreconf -vfi \
+    && autoreconf -fi \
     && ./configure --prefix=/usr \
     && make install \
     && cd .. \
@@ -39,5 +39,6 @@ RUN true \
  && apk del .build-deps \
  && true
 
+VOLUME [ "/mcc-data" ]
 ENTRYPOINT [ "lola" ]
 CMD [ "--help" ]

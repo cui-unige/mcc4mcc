@@ -24,5 +24,6 @@ RUN true \
  && apk del .build-deps \
  && true
 
- ENTRYPOINT [ "spot" ]
- CMD [ "--help" ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "spot" ]
+CMD [ "--help" ]

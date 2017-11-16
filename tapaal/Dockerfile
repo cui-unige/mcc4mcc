@@ -42,5 +42,6 @@ RUN true \
  && apk del .build-deps \
  && true
 
- ENTRYPOINT [ "verifypn" ]
- CMD [ "--help" ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "verifypn" ]
+CMD [ "--help" ]

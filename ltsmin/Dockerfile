@@ -29,5 +29,6 @@ RUN true \
  && apk del .build-deps \
  && true
 
- ENTRYPOINT [ "ltsmin" ]
- CMD [ "--help" ]
+VOLUME [ "/mcc-data" ]
+ENTRYPOINT [ "ltsmin" ]
+CMD [ "--help" ]

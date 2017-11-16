@@ -11,7 +11,8 @@ RUN true \
             -C /usr/local/ \
             --strip-components=1 \
     && rm marcie.tar.gz \
-&& true
+ && true
 
+VOLUME [ "/mcc-data" ]
 ENTRYPOINT [ "marcie" ]
 CMD [ "--help" ]
