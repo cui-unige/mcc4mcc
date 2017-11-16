@@ -1,19 +1,21 @@
-FROM alpine:edge
+FROM ubuntu
 
 RUN true \
- && apk add --no-cache --virtual .build-deps \
-        curl \
- && apk add --no-cache \
-        bash \
-        man \
+ && apt-get update \
+ && apt-get install \
+            --yes \
+            bash \
+            curl \
+            man \
  && curl http://projects.laas.fr/tina/binaries/tina-3.4.4-x86_64-linux.tar.gz \
          --output tina-3.4.4-x86_64-linux.tar.gz \
  && tar zxf tina-3.4.4-x86_64-linux.tar.gz \
         --directory /usr \
         --strip-components 1 \
  && rm -f tina-3.4.4-x86_64-linux.tar.gz \
- && apk del .build-deps \
- && false
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/* \
+ && true
 
-ENTRYPOINT tina
-CMD [ --help ]
+ ENTRYPOINT [ "tina" ]
+ CMD [ "--help" ]
