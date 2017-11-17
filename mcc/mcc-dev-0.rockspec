@@ -16,18 +16,15 @@ description = {
 
 dependencies = {
   "lua >= 5.1",
+  "compat53",
   "argparse",
-  "lustache",
-  "lua-cjson",
-  "luasocket",
   "luafilesystem",
+  "lustache",
 }
 
 build = {
   type    = "builtin",
-  modules = {
-    ["mcc"] = "mcc.lua",
-  },
+  modules = {},
   install = {
     bin = {
       ["mcc"] = "mcc.lua",
