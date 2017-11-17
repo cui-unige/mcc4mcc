@@ -3,11 +3,11 @@ FROM alpine
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         build-base \
-        boost-dev \
         cmake \
         git \
  && apk add --no-cache \
         bash \
+        boost-dev \
         python3 \
         libstdc++ \
  && git clone --depth=1 https://github.com/ahamez/libsdd.git \
