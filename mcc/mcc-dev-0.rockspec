@@ -18,8 +18,14 @@ dependencies = {
   "lua >= 5.1",
   "compat53",
   "argparse",
+  "csv",
+  "lua-cjson",
   "luafilesystem",
+  "luasec",
+  "luasocket",
   "lustache",
+  "net-url",
+  "serpent",
 }
 
 build = {
