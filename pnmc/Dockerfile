@@ -37,7 +37,8 @@ RUN true \
 
 COPY nupn.py /usr/local/bin/nupn.py
 COPY pnmc.py /usr/local/bin/pnmc.py
+COPY pnmc.py /usr/local/bin/mcc-head
 
 VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "pnmc.py" ]
+ENTRYPOINT [ "mcc-head" ]
 CMD [ "--help" ]
