@@ -210,6 +210,7 @@ for fields in mcc_data:lines () do
     x ["Status"    ] = nil
     x ["Surprise"  ] = nil
     x ["Techniques"] = nil
+    x ["Fixed size"] = nil
     for k, v in pairs (x) do
       x [k] = value_of (v)
     end
@@ -236,17 +237,17 @@ do
     output:close ()
     print "Data has been output in mcc-data.json."
   end
-  -- do
-  --   local output = assert (io.open ("mcc-data.lua", "w"))
-  --   output:write (Serpent.dump (data, {
-  --     indent   = "  ",
-  --     comment  = false,
-  --     sortkeys = true,
-  --     compact  = false,
-  --   }))
-  --   output:close ()
-  --   print "Data has been output in mcc-data.lua."
-  -- end
+  do
+    local output = assert (io.open ("mcc-data.lua", "w"))
+    output:write (Serpent.dump (data, {
+      indent   = "  ",
+      comment  = false,
+      sortkeys = true,
+      compact  = false,
+    }))
+    output:close ()
+    print "Data has been output in mcc-data.lua."
+  end
 end
 
 do -- filter only best in each examination
@@ -272,19 +273,32 @@ do -- filter only best in each examination
       local best_count = 0
       local best_tool  = nil
       local clock_sum  = math.huge
+      local memory_sum = math.huge
       for _, t in pairs (model) do
-        local sum = 0
+        local clock  = 0
+        local memory = 0
         for _, i in pairs (t) do
-          sum = sum + i ["Clock Time"]
+          clock  = clock  + i ["Clock Time"]
+          memory = memory + i ["Memory"    ]
         end
         if #t > best_count
-        or #t == best_count and sum < clock_sum then
+        or #t == best_count and clock < clock_sum
+        or #t == best_count and clock == clock_sum and memory < memory_sum then
           best_count = #t
-          clock_sum  = sum
+          clock_sum  = clock
+          memory_sum = memory
           best_tool  = t [1]
         end
       end
-      filtered [best_tool ["Id"]] = best_tool
+      local stored = {}
+      for k, v in pairs (best_tool) do
+        stored [k] = v
+      end
+      stored ["Clock time"] = nil
+      stored ["Memory"    ] = nil
+      stored ["Fixed size"] = nil
+      stored ["Instance"  ] = nil
+      filtered [best_tool ["Id"]] = stored
     end
   end
   local count = 0
@@ -308,5 +322,28 @@ do -- filter only best in each examination
     }))
     output:close ()
     print "Filtered data has been output in mcc-filtered.lua."
+  end
+  do
+    local result = {}
+    for _, t in pairs (filtered) do
+      if not result [t ["Examination"]] then
+        result [t ["Examination"]] = {}
+      end
+      local examination = result [t ["Examination"]]
+      if not examination [t ["Model"]] then
+        examination [t ["Model"]] = {}
+      end
+      local model = examination [t ["Model"]]
+      model.tool = t ["Tool"]
+    end
+    local output = assert (io.open ("known.lua", "w"))
+    output:write (Serpent.dump (result, {
+      indent   = "  ",
+      comment  = false,
+      sortkeys = true,
+      compact  = false,
+    }))
+    output:close ()
+    print "Known models data has been output in known.lua."
   end
 end

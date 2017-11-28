@@ -5,6 +5,7 @@ require "compat53"
 local Argparse = require "argparse"
 local Lfs      = require "lfs"
 local Lustache = require "lustache"
+local Known    = require "known"
 
 local temporary
 
@@ -47,55 +48,61 @@ parser:option "-i" "--input" {
     end
   end,
 }
-parser:argument "examination" {
+parser:option "-e" "--examination" {
   description = "examniation type",
   default     = os.getenv "BK_EXAMINATION",
 }
-local arguments = parser:parse ()
-assert (arguments)
+local arguments = assert (parser:parse ())
 
-local function run (container, tool)
-  print ("Starting tool...")
-  assert (os.execute (Lustache:render ([[
+local model
+do
+  model = arguments.input
+        : match "([^%./]+)$"
+  model = model
+        : match "^([^%-]+)%-([^%-]+)%-([^%-]+)$"
+        or model
+end
+
+local tool
+local container
+do
+  if  Known [arguments.examination]
+  and Known [arguments.examination] [model]
+  then
+    tool      = Known [arguments.examination] [model].tool
+    container = "mcc/" .. tool
+  end
+end
+
+local log = os.getenv "BK_LOG_FILE"
+if not log then
+  log = os.tmpname ()
+end
+
+if container then
+  print ("Starting " .. container .. "...")
+  if not os.execute (Lustache:render ([[
     docker run \
       --volume "{{{directory}}}:/mcc-data" \
       --workdir "/mcc-data" \
       --env BK_TOOL="{{{tool}}}" \
       --env BK_EXAMINATION="{{{examination}}}" \
       --env BK_INPUT="{{{input}}}" \
+      --env BK_LOG_FILE="{{{log}}}" \
       "{{{container}}}"
   ]], {
     directory   = arguments.input,
+    container   = container,
     tool        = tool,
     examination = arguments.examination,
     input       = arguments.input:match "([^%./]+)$",
-    container   = container,
-  })))
-end
-
-local ok, err = pcall (function ()
-  -- local modelfile  = read_file "model.pnml"
-  -- local is_colored = read_line "iscolored"
-  -- local colored    = read_line "equiv_col"
-  -- local pt         = read_line "equiv_pt"
-  -- local instance   = read_line "instance"
-  local container, tool
-  if     arguments.examination == "StateSpace"              then
-    container = "mcc/pnmc"
-    tool      = "pnmc"
-  elseif arguments.examination == "UpperBounds"             then
-  elseif arguments.examination == "ReachabilityDeadlock"    then
-  elseif arguments.examination == "ReachabilityFireability" then
-  elseif arguments.examination == "ReachabilityCardinality" then
-  elseif arguments.examination == "LTLFireability"          then
-  elseif arguments.examination == "LTLCardinality"          then
-  elseif arguments.examination == "CTLFireability"          then
-  elseif arguments.examination == "CTLCardinality"          then
-  else
-    assert (false, "Unknown examination: " .. tostring (examination) .. ".")
+    log         = log,
+  })) then
+    print "CANNOT COMPUTE"
   end
-  run (container, tool)
-end)
+else
+  assert (false)
+end
 
 if temporary then
   print "Removing temporary files..."
@@ -105,9 +112,4 @@ if temporary then
     input     = arguments.input,
     temporary = temporary,
   }))
-end
-
-if not ok then
-  print "CANNOT COMPUTE"
-  io.stderr:write (err .. "\n")
 end
