@@ -1,5 +1,7 @@
 FROM alpine
 
+COPY mcc-head /usr/local/bin/
+
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         curl \
@@ -14,5 +16,5 @@ RUN true \
  && true
 
 VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "marcie" ]
+ENTRYPOINT [ "mcc-head" ]
 CMD [ "--help" ]
