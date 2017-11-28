@@ -1,0 +1,166 @@
+#! /usr/bin/env bash
+
+# main for tedd tool
+# run from within execution dir
+
+# deadline
+deadline=`date +%s --date='3540 seconds'`
+
+export HOMCACHESIZE=30000000
+export SDDUTSIZE=30000000
+export SDDCACHESIZE=15000000
+export MCC=1
+export GOTRACEBAK=0
+
+echoerr() { echo "$@" 1>&2; }
+
+# We only compete in the StateSpace category.
+if [ "$BK_EXAMINATION" != "StateSpace" ]
+then echoerr StateSpace False; echo DO_NOT_COMPETE; exit 0
+else echoerr StateSpace True
+fi
+
+name=$BK_INPUT
+heap="@MLton fixed-heap 15G --"
+# default otions, possibly superseded by those in flags file for Known
+options="-auto -count-transitions -count-tokens"
+
+if [ `cat iscolored` == "TRUE" ]
+
+then echoerr Colored True
+    if [ -f NewModel ]
+	# if [ 1 ]
+
+    then
+	echoerr Known False
+	echoerr calling mcc
+	mcc hlnet -i model.pnml
+	res=$?
+	sync
+	if [ "$res" != "0" ]
+	then echoerr mcc failure with status $res; echo CANNOT COMPUTE; exit 0
+	else echoerr mcc success
+	fi
+	# calling tedd portfolio for new models, no flags file
+	# predefined orders tried in sequence:
+	echoerr tedd on `ls model.*t*`
+	ORDER[0]="-order-dfs,force-stab,flat"
+	TIME[0]="280"
+	ORDER[1]="-order-bfs,force-stab,flat"
+	TIME[1]="280"
+	ORDER[2]="-order-scan"
+	TIME[2]="280"
+	ORDER[3]="-order-struct-f-sort,4ti2,force-stab,flat -order-struct-limit 200"
+	TIME[3]="2700"
+	ORDER[4]="-order-sliced"
+	# unused:
+	TIME[4]="1000"
+	max=4
+	# go
+	no=0
+	res=1
+	while [[ $res -ne "0" && $no -lt $max ]]
+	do
+	    echoerr trying ${ORDER[$no]} $options for ${TIME[$no]}s
+	    timeout --preserve-status ${TIME[$no]} tedd $heap $options ${ORDER[$no]} -ddl $deadline model.*t* output digest
+	    res=$?
+	    no=`expr 1 + $no`
+	done
+	# no timeout for last order spec
+	if [ $res -ne "0" ]
+	then
+	    echoerr trying ${ORDER[$no]} $options
+	    tedd $heap $options ${ORDER[$no]} -ddl $deadline model.*t* output digest
+	    res=$?
+	fi
+
+    else
+	echoerr Known True
+	options=`grep $name $bin/flags | { read first rest; echo $rest; }`
+	echoerr options=$options
+	# calling tedd portfolio for known
+	if [ -f $bin/net/$name.net ]
+	then echoerr tedd on net
+	    tedd $heap $options -ddl $deadline $bin/net/$name.net output digest
+	    res=$?
+	else
+	    echo DO_NOT_COMPETE; exit 0
+	fi
+    fi
+
+else
+    echoerr Colored False
+    if [ -f NewModel ]
+	# forcing new for testing
+	# if [ 1 ]
+
+    then
+	echoerr Known False
+	echoerr tedd on pnml
+	# calling tedd portfolio for new models, no flags file
+	# predefined orders tried in sequence:
+	ORDER[0]="-order-dfs,force-stab,flat"
+	TIME[0]="560"
+	ORDER[1]="-order-bfs,force-stab,flat"
+	TIME[1]="580"
+	ORDER[2]="-order-scan"
+	TIME[2]="500"
+	ORDER[3]="-order-struct-f-sort,4ti2,force-stab,flat -order-struct-limit 200"
+	TIME[3]="1200"
+	ORDER[4]="-order-sliced"
+	# unused:
+	TIME[4]="1000"
+	max=4
+	# go
+	no=0
+	res=1
+	while [[ $res -ne "0" && $no -lt $max ]]
+	do
+	    echoerr trying ${ORDER[$no]} $options for ${TIME[$no]}s
+	    timeout --preserve-status ${TIME[$no]} tedd $heap $options ${ORDER[$no]} -ddl $deadline model.pnml output digest
+	    res=$?
+	    no=`expr 1 + $no`
+	done
+	# no timeout for last order spec
+	if [ $res -ne "0" ]
+	then
+	    echoerr trying ${ORDER[$no]} $options
+	    tedd $heap $options ${ORDER[$no]} -ddl $deadline model.pnml output digest
+	    res=$?
+	fi
+
+    else
+	echoerr Known True
+	# calling tedd portfolio for known
+	options=`grep $name $bin/flags | { read first rest; echo $rest; }`
+	echoerr options=$options
+	echoerr tedd on pnml
+	tedd $heap $options -ddl $deadline model.pnml output digest
+	res=$?
+    fi
+
+    if [ "$res" != "0" ]
+    then echoerr failure with status $res; echo CANNOT COMPUTE; exit 0
+    else echoerr success
+    fi
+fi
+
+if [ -f results.json ]
+then
+    # print results using jq  (1.5 requird; spaces in keys not supported by default 1.3 in 14.04)
+    sync
+    tech='TECHNIQUES DECISION_DIAGRAMS STATE_COMPRESSION STRUCTURAL_REDUCTION SEQUENTIAL_PROCESSING'
+    states=`jq -r .states results.json`
+    transitions=`jq -r .transitions results.json`
+    ptokens=`jq -r .ptokens results.json`
+    mtokens=`jq -r .mtokens results.json`
+
+    echo STATE_SPACE STATES $states $tech
+    echo STATE_SPACE TRANSITIONS $transitions $tech
+    echo STATE_SPACE MAX_TOKEN_IN_PLACE $ptokens $tech
+    echo STATE_SPACE MAX_TOKEN_PER_MARKING $mtokens $tech
+
+else
+    # results.json not found ...
+    echo CANNOT COMPUTE
+fi
