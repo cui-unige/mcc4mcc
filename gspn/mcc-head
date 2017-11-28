@@ -1,0 +1,107 @@
+#! /usr/bin/env bash
+#############################################################################
+# This is an example for the MCC'2015
+#############################################################################
+
+#############################################################################
+# In this script, you will affect values to your tool in order to let
+# BenchKit launch it in an apropriate way.
+#############################################################################
+
+# BK_EXAMINATION: it is a string that identifies your "examination"
+
+GSPN_PATH="/usr/local/share/gspn"
+
+case "$BK_EXAMINATION" in
+
+	StateSpace|UpperBounds|Reachability*|CTL*)
+		true
+		;;
+
+	LTL*)
+		echo 'DO_NOT_COMPETE'
+		exit 0
+		;;
+
+	*)
+		echo "$0: Wrong invocation:" >> $BK_LOG_FILE
+		echo 'DO_NOT_COMPETE'
+		exit 0
+		#exit 1
+		;;
+esac
+
+
+rgmedd2Path="RGMEDD2"
+varord="META"
+meddlyCache="67108864"
+
+ulimit -s 32768
+if [[ `cat iscolored` == "TRUE" ]]
+then
+    colored="1"
+    unfoldingParams="-unfolding-map model.unfmap"
+    #echo "Running on a Colored net"
+else
+    colored=""
+    unfoldingParams=""
+    #echo "Running on a PT net"
+fi
+
+
+if [[ ! -f model.def ]]
+then
+    #printf 'Converting .pnml to .net, .def'
+    #if [ $colored ]
+    #then
+    #    echo ', .id2name and .unfmap'
+    #else
+    #    echo ' and .id2name'
+    #fi
+    timeout 300s java -mx2000m \
+			-cp "${GSPN_PATH}/bin/Editor.jar":"${GSPN_PATH}/bin/lib/antlr-runtime-4.2.1.jar" \
+			editor.UnfoldPNML2NetDefCommandLineTool model -name-map
+    if [[ $? -ne "0" ]]
+    then
+        echo 'CANNOT_COMPUTE'
+        exit 0
+    fi
+    #echo "Computing bounds, with a timeout of 30s"
+    timeout 30s "${GSPN_PATH}/bin/struct" model -only-bnd -detect-exp
+    if [[ $? -ne "0" ]]
+    then
+        rm -f model.bnd model.pin
+    fi
+fi
+
+if [[ -f model.bnd ]]
+then
+    #echo 'Bounds computed'
+    boundParam="-guess-load-from-file"
+else
+    #echo "Bounds not computed"
+    boundParam="-guess-max0-exp"
+fi
+
+case $BK_EXAMINATION in
+    StateSpace)
+        #echo 'Computing state space'
+        MCC=1 $rgmedd2Path model -$varord -event-nsf -h $meddlyCache $boundParam
+        ;;
+    UpperBounds|Reachability*|CTL*)
+        xmlFile="$BK_EXAMINATION.xml"
+        ctlFile="$BK_EXAMINATION.ctl"
+        if [[ ! -f $ctlFile ]]
+        then
+            #echo "Converting $BK_EXAMINATION formulas"
+            java -jar "${GSPN_PATH}/bin/MccCtlConv.jar" $xmlFile -name-map model.id2name $unfoldingParams > $ctlFile
+        #else
+        #    echo "$BK_EXAMINATION formulas already converted. Using them"
+        fi
+        #echo "Evaluating $BK_EXAMINATION formulas"
+        MCC=1 $rgmedd2Path model -$varord -mono-nsf -h $meddlyCache $boundParam -C -f $ctlFile
+        ;;
+    *)
+        echo 'DO_NOT_COMPETE'
+        ;;
+esac
