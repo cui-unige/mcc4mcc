@@ -1,0 +1,52 @@
+#!/bin/bash
+
+TIME_CONFINEMENT=$BK_TIME_CONFINEMENT
+
+#cp $BK_MCC_PATH/Makefile .
+cp /usr/local/share/lola/Makefile .
+
+# get beginning time
+startPreparationTime=$(date +%s);
+
+# threshold value to detect small time confinements (e.g. qualification phase)
+THRESHOLD=120
+
+if [ $TIME_CONFINEMENT -gt $THRESHOLD ]
+then
+    # Use TIME_CONFINEMENT - 60 seconds as offset: MCC
+    echo ""
+    echo "Time: $BK_TIME_CONFINEMENT - MCC"
+    offset=$(($TIME_CONFINEMENT-60))
+else
+    # Use TIME_CONFINEMENT - 15 seconds as offset: MCC qualification phase
+    echo ""
+    echo "Time: $BK_TIME_CONFINEMENT - MCC qualification phase"
+    offset=$(($TIME_CONFINEMENT-30))
+fi
+
+# Do preparation work, e.g. convert model and formulas
+echo "----- Start make prepare stdout -----"
+echo "----- Start make prepare stderr -----" >&2
+make prepare
+
+# get time after preparation
+endPreparationTime=$(date +%s);
+# calculate remaining time
+remainingTime=$(($offset + $startPreparationTime - $endPreparationTime));
+export remainingTime;
+
+# Start LoLA
+echo "----- Start make result stdout -----"
+echo "----- Start make result stderr -----" >&2
+make verify
+
+# Get and print results
+echo "----- Start make result stdout -----"
+echo "----- Start make result stderr -----" >&2
+make result
+echo "----- Kill lola and sara stdout -----"
+echo "----- Kill lola and sara stderr -----" >&2
+pkill lola
+pkill sara
+echo "----- Finished stdout -----"
+echo "----- Finished stderr -----" >&2
