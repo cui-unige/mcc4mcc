@@ -1,6 +1,8 @@
 FROM alpine
 
-COPY Makefile /Makefile
+COPY Makefile  /Makefile
+COPY mcc-head  /usr/local/bin/
+COPY start     /usr/local/bin/
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -16,7 +18,9 @@ RUN true \
         sed \
  && apk add --no-cache \
         bash \
+        bc \
         boost \
+        parallel \
         libstdc++ \
  && git clone --depth=1 https://github.com/kerrickstaley/lp_solve.git \
     && cd lp_solve/lpsolve55 \
@@ -26,7 +30,7 @@ RUN true \
     && cd .. \
     && mkdir -p /usr/local/include/lpsolve \
     && install *.h /usr/local/include/lpsolve/ \
-    && rm -rf lp_solve \
+    && rm -rf lp_solve* \
  && bzr branch lp:verifypn \
     && rm verifypn/makefile* \
     && cp /Makefile verifypn/ \
@@ -37,11 +41,11 @@ RUN true \
     && make \
     && install -m 755 verifypn-linux64 /usr/local/bin/verifypn \
     && cd .. \
-    && rm -rf verifypn \
+    && rm -rf verifypn* \
  && rm /Makefile \
  && apk del .build-deps \
  && true
 
 VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "verifypn" ]
+ENTRYPOINT [ "mcc-head" ]
 CMD [ "--help" ]
