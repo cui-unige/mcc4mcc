@@ -1,5 +1,8 @@
 FROM alpine
 
+COPY mcc-head      /usr/local/bin/
+COPY formulizer.py /usr/local/bin/
+
 RUN true \
  && echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing" \
         >> /etc/apk/repositories \
@@ -14,6 +17,7 @@ RUN true \
         zlib-dev \
  && apk add --no-cache \
         bash \
+        python3 \
         popt \
         zlib \
  && curl -L https://github.com/utwente-fmt/ltsmin/releases/download/2.1/ltsmin-2.1.tar.gz \
@@ -25,10 +29,10 @@ RUN true \
     && make check \
     && make install \
     && cd .. \
-    && rm -rf ltsmin-2.1 \
+    && rm -rf ltsmin-2.1* \
  && apk del .build-deps \
  && true
 
 VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "ltsmin" ]
+ENTRYPOINT [ "mcc-head" ]
 CMD [ "--help" ]
