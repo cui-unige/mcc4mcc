@@ -10,7 +10,8 @@
 
 # BK_EXAMINATION: it is a string that identifies your "examination"
 
-GSPN_PATH="/usr/local/share/gspn"
+export GSPN_PATH="/usr/local/GreatSPN"
+export PATH="${GSPN_PATH}/bin:${PATH}"
 
 case "$BK_EXAMINATION" in
 
