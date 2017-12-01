@@ -3,11 +3,13 @@ FROM alpine
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         build-base \
+        boost-dev \
         cmake \
         git \
  && apk add --no-cache \
         bash \
-        boost-dev \
+        boost-program_options \
+        boost-coroutine \
         python3 \
         libstdc++ \
  && git clone --depth=1 https://github.com/ahamez/libsdd.git \
@@ -38,6 +40,8 @@ RUN true \
 COPY nupn.py /usr/local/bin/nupn.py
 COPY pnmc.py /usr/local/bin/pnmc.py
 COPY pnmc.py /usr/local/bin/mcc-head
+
+RUN du -sh /usr/include/*
 
 VOLUME [ "/mcc-data" ]
 ENTRYPOINT [ "mcc-head" ]
