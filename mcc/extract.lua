@@ -4,15 +4,10 @@ require "compat53"
 
 local Argparse = require "argparse"
 local Csv      = require "csv"
--- local Http     = require "socket.http"
--- local Https    = require "ssl.https"
 local Json     = require "cjson"
 local Lfs      = require "lfs"
 local Lustache = require "lustache"
--- local Ltn12    = require "ltn12"
 local Serpent  = require "serpent"
--- local Url      = require "net.url"
--- local Yaml     = require "lyaml"
 
 local parser = Argparse () {
   name        = "mcc-extract",
@@ -29,7 +24,7 @@ local mcc_data
 do
   os.remove (directory)
   Lfs.mkdir (directory)
-  print ("Data is written to " .. directory .. ".")
+  print ("Temporary data is written to " .. directory .. ".")
 end
 
 do
@@ -62,6 +57,7 @@ end
 
 local keys = {
   data = {
+    "Year",
     "Tool",
     "Instance",
     "Examination",
@@ -173,7 +169,7 @@ for fields in mcc_data:lines () do
   and x ["Results"  ] ~= "DNF"
   and x ["Results"  ] ~= "CC"
   then
-    data [x ["Id"]] = x
+    data [#data+1] = x
     do
       for technique in x ["Techniques"]:gmatch "[A-Z_]+" do
         x [technique] = true
@@ -237,17 +233,17 @@ do
     output:close ()
     print "Data has been output in mcc-data.json."
   end
-  do
-    local output = assert (io.open ("mcc-data.lua", "w"))
-    output:write (Serpent.dump (data, {
-      indent   = "  ",
-      comment  = false,
-      sortkeys = true,
-      compact  = false,
-    }))
-    output:close ()
-    print "Data has been output in mcc-data.lua."
-  end
+  -- do
+  --   local output = assert (io.open ("mcc-data.lua", "w"))
+  --   output:write (Serpent.dump (data, {
+  --     indent   = "  ",
+  --     comment  = false,
+  --     sortkeys = true,
+  --     compact  = false,
+  --   }))
+  --   output:close ()
+  --   print "Data has been output in mcc-data.lua."
+  -- end
 end
 
 do -- filter only best in each examination
@@ -265,7 +261,11 @@ do -- filter only best in each examination
       model [x ["Tool"]] = {}
     end
     local tool = model [x ["Tool"]]
-    tool [#tool+1] = x
+    if not tool [x ["Year"]] then
+      tool [ x ["Year"]] = {}
+    end
+    local year = tool [ x ["Year"]]
+    year [#year+1] = x
   end
   local filtered = {}
   for _, examination in pairs (examinations) do
@@ -274,31 +274,33 @@ do -- filter only best in each examination
       local best_tool  = nil
       local clock_sum  = math.huge
       local memory_sum = math.huge
-      for _, t in pairs (model) do
-        local clock  = 0
-        local memory = 0
-        for _, i in pairs (t) do
-          clock  = clock  + i ["Clock Time"]
-          memory = memory + i ["Memory"    ]
+      for _, year in pairs (model) do
+        for _, t in pairs (year) do
+          local clock  = 0
+          local memory = 0
+          for _, i in pairs (t) do
+            clock  = clock  + i ["Clock Time"]
+            memory = memory + i ["Memory"    ]
+          end
+          if #t > best_count
+          or #t == best_count and clock < clock_sum
+          or #t == best_count and clock == clock_sum and memory < memory_sum then
+            best_count = #t
+            clock_sum  = clock
+            memory_sum = memory
+            best_tool  = t [1]
+          end
         end
-        if #t > best_count
-        or #t == best_count and clock < clock_sum
-        or #t == best_count and clock == clock_sum and memory < memory_sum then
-          best_count = #t
-          clock_sum  = clock
-          memory_sum = memory
-          best_tool  = t [1]
+        local stored = {}
+        for k, v in pairs (best_tool) do
+          stored [k] = v
         end
+        stored ["Clock time"] = nil
+        stored ["Memory"    ] = nil
+        stored ["Fixed size"] = nil
+        stored ["Instance"  ] = nil
+        filtered [best_tool ["Id"]] = stored
       end
-      local stored = {}
-      for k, v in pairs (best_tool) do
-        stored [k] = v
-      end
-      stored ["Clock time"] = nil
-      stored ["Memory"    ] = nil
-      stored ["Fixed size"] = nil
-      stored ["Instance"  ] = nil
-      filtered [best_tool ["Id"]] = stored
     end
   end
   local count = 0
@@ -312,17 +314,17 @@ do -- filter only best in each examination
     output:close ()
     print "Filtered data has been output in mcc-filtered.json."
   end
-  do
-    local output = assert (io.open ("mcc-filtered.lua", "w"))
-    output:write (Serpent.dump (filtered, {
-      indent   = "  ",
-      comment  = false,
-      sortkeys = true,
-      compact  = false,
-    }))
-    output:close ()
-    print "Filtered data has been output in mcc-filtered.lua."
-  end
+  -- do
+  --   local output = assert (io.open ("mcc-filtered.lua", "w"))
+  --   output:write (Serpent.dump (filtered, {
+  --     indent   = "  ",
+  --     comment  = false,
+  --     sortkeys = true,
+  --     compact  = false,
+  --   }))
+  --   output:close ()
+  --   print "Filtered data has been output in mcc-filtered.lua."
+  -- end
   do
     local result = {}
     for _, t in pairs (filtered) do
