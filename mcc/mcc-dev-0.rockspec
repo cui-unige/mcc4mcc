@@ -21,10 +21,7 @@ dependencies = {
   "csv",
   "lua-cjson",
   "luafilesystem",
-  "luasec",
-  "luasocket",
   "lustache",
-  "net-url",
   "serpent",
 }
 

@@ -52,6 +52,9 @@ parser:option "-e" "--examination" {
   description = "examniation type",
   default     = os.getenv "BK_EXAMINATION",
 }
+parser:option "-t" "--tool" {
+  description = "tool",
+}
 local arguments = assert (parser:parse ())
 
 local model
@@ -63,15 +66,16 @@ do
         or model
 end
 
-local tool
-local container
-do
-  if  Known [arguments.examination]
-  and Known [arguments.examination] [model]
-  then
-    tool      = Known [arguments.examination] [model].tool
-    container = "mcc/" .. tool
-  end
+local tools
+if arguments.tool then
+  tools = {
+    { Tool = arguments.tool },
+  }
+elseif Known [arguments.examination]
+   and Known [arguments.examination] [model] then
+  tools = Known [arguments.examination] [model]
+else
+  assert "Cannot find tool to run."
 end
 
 local log = os.getenv "BK_LOG_FILE"
@@ -79,29 +83,35 @@ if not log then
   log = os.tmpname ()
 end
 
-if container then
-  print ("Starting " .. container .. "...")
-  if not os.execute (Lustache:render ([[
-    docker run \
-      --volume "{{{directory}}}:/mcc-data" \
-      --workdir "/mcc-data" \
-      --env BK_TOOL="{{{tool}}}" \
-      --env BK_EXAMINATION="{{{examination}}}" \
-      --env BK_INPUT="{{{input}}}" \
-      --env BK_LOG_FILE="{{{log}}}" \
-      "{{{container}}}"
-  ]], {
-    directory   = arguments.input,
-    container   = container,
-    tool        = tool,
-    examination = arguments.examination,
-    input       = arguments.input:match "([^%./]+)$",
-    log         = log,
-  })) then
+if #tools == 0 then
+  print "DO NOT COMPETE"
+else
+  local success = false
+  for _, tool in ipairs (tools) do
+    print ("Starting " .. tool.Tool .. "...")
+    if os.execute (Lustache:render ([[
+      docker run \
+        --volume "{{{directory}}}:/mcc-data" \
+        --workdir "/mcc-data" \
+        --env BK_TOOL="{{{tool}}}" \
+        --env BK_EXAMINATION="{{{examination}}}" \
+        --env BK_INPUT="{{{input}}}" \
+        --env BK_LOG_FILE="{{{log}}}" \
+        "mcc/{{{tool}}}"
+    ]], {
+      directory   = arguments.input,
+      tool        = tool.Tool,
+      examination = arguments.examination,
+      input       = arguments.input:match "([^%./]+)$",
+      log         = log,
+    })) then
+      success = true
+      break
+    end
+  end
+  if not success then
     print "CANNOT COMPUTE"
   end
-else
-  assert (false)
 end
 
 if temporary then
