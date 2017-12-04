@@ -1,6 +1,6 @@
 #! /usr/bin/env lua
 
-require "compat53"
+-- require "compat53"
 
 local Argparse = require "argparse"
 local Csv      = require "csv"
@@ -147,10 +147,40 @@ local function value_of (x)
   end
 end
 
-local techniques = {}
-local models     = {}
-local data       = {}
-local filtered   = {}
+local techniques   = {}
+local models       = {}
+local examinations = {}
+local instances    = {}
+local tools        = {}
+local years        = {}
+local mdata        = {}
+local data         = {}
+local _            = tools
+
+local Select = {}
+
+function Select:__call (t)
+  local result = {}
+  for _, x in pairs (self) do
+    local ok = true
+    if type (t) == "table" then
+      for k, v in pairs (t) do
+        if x [k] ~= v then
+          ok = false
+          break
+        end
+      end
+    elseif type (t) == "function" then
+      ok = t (x)
+    end
+    if ok then
+      result [#result+1] = x
+    end
+  end
+  return setmetatable (result, Select)
+end
+
+Select.all = setmetatable (data, Select)
 
 -- Fill models:
 for fields in pn_data:lines () do
@@ -165,10 +195,11 @@ for fields in pn_data:lines () do
   x ["Origin"          ] = nil
   x ["Submitter"       ] = nil
   x ["Year"            ] = nil
-  models [x ["Id"]] = x
+  mdata [x ["Id"]] = x
   for k, v in pairs (x) do
     x [k] = value_of (v)
   end
+  models [x ["Id"]] = true
 end
 
 do -- Export characteristics to LaTeX
@@ -186,7 +217,7 @@ do -- Export characteristics to LaTeX
     output:write (table.concat (ks, " & ") .. "\\\\\n")
     output:write ("\\hline\n")
   end
-  for _, model in pairs (models) do
+  for _, model in pairs (mdata) do
     local out = { model ["Id"] }
     for _, characteristic in pairs (characteristics) do
       local value = model [characteristic]
@@ -230,11 +261,13 @@ for fields in mcc_data:lines () do
       end
     end
     do
+      x ["Surprise"] = x ["Instance"]:match "^S_.*$" and true or false
+      x ["Instance"] = x ["Surprise"]
+                   and x ["Instance"]:match "^S_(.*)"
+                    or x ["Instance"]
       local model_name = x ["Instance"]:match "^([^%-]+)%-([^%-]+)%-([^%-]+)$"
                       or x ["Instance"]
-      x ["Surprise"] = model_name:match "^S_.*$" and true or false
-      model_name = model_name:match "^S_(.*)$" or model_name
-      local model = assert (models [model_name], Json.encode (x))
+      local model = assert (mdata [model_name], Json.encode (x))
       x ["Model"] = model_name
       for k, v in pairs (model) do
         if k ~= "Id" then
@@ -242,12 +275,6 @@ for fields in mcc_data:lines () do
         else
           x ["Model Id"] = v
         end
-      end
-    end
-    do
-      if x ["Instance"]:match "^([^%-]+)%-([^%-]+)%-([^%-]+)$" then
-        local instance, _, parameter = x ["Instance"]:match "^([^%-]+)%-([^%-]+)%-([^%-]+)$"
-        x ["Instance"] = instance .. "-" .. parameter
       end
     end
     x ["Time OK"   ] = nil
@@ -263,6 +290,11 @@ for fields in mcc_data:lines () do
     for k, v in pairs (x) do
       x [k] = value_of (v)
     end
+    tools        [x ["Tool"       ]] = true
+    examinations [x ["Examination"]] = true
+    years        [x ["Year"       ]] = true
+    instances    [x ["Model"      ]] = instances [x ["Model"]] or {}
+    instances [x ["Model"]] [x ["Instance"]] = true
   end
 end
 
@@ -289,109 +321,116 @@ do -- Export data:
 end
 
 do -- Sort tools by examination and model:
-  for _, x in pairs (data) do
-    if not filtered [x ["Examination"]] then
-      filtered [x ["Examination"]] = {}
+  local function info_of (t)
+    local count  = 0
+    local clock  = 0
+    local memory = 0
+    for _, x in ipairs (t) do
+      count  = count  + 1
+      clock  = clock  + x ["Clock Time"]
+      memory = memory + x ["Memory"    ]
     end
-    local examination = filtered [x ["Examination"]]
-    if not examination [x ["Model"]] then
-      examination [x ["Model"]] = {}
-    end
-    local model = examination [x ["Model"]]
-    if not model [x ["Tool"]] then
-      model [x ["Tool"]] = {}
-    end
-    local tool = model [x ["Tool"]]
-    if not tool [x ["Year"]] then
-      tool [x ["Year"]] = {}
-    end
-    local year = tool [x ["Year"]]
-    year [#year+1] = x
+    return {
+      count  = count,
+      clock  = clock,
+      memory = memory,
+    }
   end
-  for _, examination in pairs (filtered) do
-    for _, model in pairs (examination) do
-      local tools = {}
-      for _, tool in pairs (model) do
-        for _, year in pairs (tool) do
-          local t = {}
-          for k, v in pairs (year) do
-            t [k] = v
-          end
-          tools [#tools+1] = t
-        end
-      end
-      local function info_of (t)
-        local count  = 0
-        local clock  = 0
-        local memory = 0
-        for _, x in ipairs (t) do
-          count  = count  + 1
-          clock  = clock  + x ["Clock Time"]
-          memory = memory + x ["Memory"    ]
-        end
-        return {
-          count  = count,
-          clock  = clock,
-          memory = memory,
-        }
-      end
-      table.sort (tools, function (l, r)
-        local li, ri = info_of (l), info_of (r)
-        if li.count > ri.count then
-          return true
-        elseif li.count == ri.count
-           and li.clock <  ri.clock then
-          return true
-        elseif li.count  == ri.count
-           and li.clock  <  ri.clock
-           and li.memory <  ri.memory then
-          return true
-        end
-        return false
-      end)
-      model.sorted = {}
-      for _, t in ipairs (tools) do
-        local ti = info_of (t)
-        model.sorted [#model.sorted+1] = {
-          ["Tool"      ] = t [1] ["Tool"],
-          ["Count"     ] = ti.count,
-          ["Clock Time"] = ti.clock,
-          ["Memory"    ] = ti.memory,
-        }
-      end
+  local function compare (li, ri)
+    if li.count > ri.count then
+      return true
+    elseif li.count == ri.count
+       and li.clock <  ri.clock then
+      return true
+    elseif li.count  == ri.count
+       and li.clock  <  ri.clock
+       and li.memory <  ri.memory then
+      return true
+    else
+      return false
     end
   end
-end
-
--- do
---   local count = 0
---   for _ in pairs (filtered) do
---     count = count+1
---   end
---   print (count .. " filtered entries.")
---   do
---     local output = assert (io.open ("mcc-filtered.json", "w"))
---     output:write (Json.encode (filtered))
---     output:close ()
---     print "Filtered data has been output in mcc-filtered.json."
---   end
-  -- do
-  --   local output = assert (io.open ("mcc-filtered.lua", "w"))
-  --   output:write (Serpent.dump (filtered, {
-  --     indent   = "  ",
-  --     comment  = false,
-  --     sortkeys = true,
-  --     compact  = false,
-  --   }))
-  --   output:close ()
-  --   print "Filtered data has been output in mcc-filtered.lua."
-  -- end
-do
   local result = {}
-  for e, examination in pairs (filtered) do
-    result [e] = {}
-    for m, model in pairs (examination) do
-      result [e] [m] = model.sorted
+  for examination in pairs (examinations) do
+    result [examination] = {}
+    for model in pairs (models) do
+      result [examination] [model] = {}
+      local for_model = Select.all {
+        ["Examination"] = examination,
+        ["Model"      ] = model,
+      }
+      print ("Analyzing " .. #for_model .. " entries for ".. examination .. " on " .. model .. "...")
+      local ts = {}
+      for year in pairs (years) do
+        for tool in pairs (tools) do
+          local info = info_of (for_model {
+            ["Examination"] = examination,
+            ["Model"      ] = model,
+            ["Tool"       ] = tool,
+            ["Year"       ] = year,
+          })
+          if info.count > 0 then
+            info.tool  = tool
+            ts [#ts+1] = info
+          end
+        end
+      end
+      table.sort (ts, compare)
+      for i, x in ipairs (ts) do
+        ts [i] = x.tool
+      end
+      do -- remove duplicates
+        local seen = {}
+        local i    = 1
+        while i <= #ts do
+          if seen [ts [i]] then
+            table.remove (ts, i)
+          else
+            seen [ts [i]] = true
+            i = i + 1
+          end
+        end
+      end
+      result [examination] [model].sorted = ts
+      for instance in pairs (instances [model]) do
+        result [examination] [model] [instance] = {}
+        local its = {}
+        for year in pairs (years) do
+          for tool in pairs (tools) do
+            local info = info_of (for_model {
+              ["Examination"] = examination,
+              ["Model"      ] = model,
+              ["Instance"   ] = instance,
+              ["Tool"       ] = tool,
+              ["Year"       ] = year,
+            })
+            if info.count > 0 then
+              info.tool    = tool
+              its [#its+1] = info
+            end
+          end
+        end
+        table.sort (its, compare)
+        for i, x in ipairs (its) do
+          its [i] = x.tool
+        end
+        for _, x in ipairs (ts) do
+          its [#its+1] = x
+        end
+        do -- remove duplicates
+          local seen = {}
+          local i    = 1
+          while i <= #its do
+            if seen [its [i]] then
+              table.remove (its, i)
+            else
+              seen [its [i]] = true
+              i = i + 1
+            end
+          end
+        end
+        result [examination] [model] [instance].sorted = its
+      end
     end
   end
   local output = assert (io.open ("known.lua", "w"))
