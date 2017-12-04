@@ -104,40 +104,55 @@ local keys = {
   },
 }
 
+local characteristics = {
+  "Connected",
+  "Conservative",
+  "Deadlock",
+  "Extended Free Choice",
+  "Live",
+  "Loop Free",
+  "Marked Graph",
+  "Nested Units",
+  "Ordinary",
+  "Quasi Live",
+  "Reversible",
+  "Safe",
+  "Simple Free Choice",
+  "Sink Place",
+  "Sink Transition",
+  "Source Place",
+  "Source Transition",
+  "State Machine",
+  "Strongly Connected",
+  "Sub-Conservative",
+}
+
 local function value_of (x)
   if x == "True" then
-    return 1
+    return true
   elseif x == "False" then
-    return -1
+    return false
   elseif x == "Yes" then
-    return 1
+    return true
   elseif x == "None" then
-    return -1
+    return false
   elseif x == "Unknown" then
-    return 0
+    return nil
   elseif x == "OK" then
-    return 1
-  elseif x == true then
-    return 1
-  elseif x == false then
-    return -1
+    return true
   elseif tonumber (x) then
     return tonumber (x)
   else
     return x
-    -- if strings [x] then
-    --   return strings [x]
-    -- else
-    --   strings [#strings+1] = x
-    --   strings [x         ] = #strings
-    --   return #strings
-    -- end
   end
 end
 
 local techniques = {}
+local models     = {}
+local data       = {}
+local filtered   = {}
 
-local models = {}
+-- Fill models:
 for fields in pn_data:lines () do
   local x = {}
   for i, key in ipairs (keys.models) do
@@ -156,7 +171,45 @@ for fields in pn_data:lines () do
   end
 end
 
-local data = {}
+do -- Export characteristics to LaTeX
+  local output = assert (io.open ("characteristics.tex", "w"))
+  local ks     = { "Id", ["Id"] = 1 }
+  local cs     = { "|c" }
+  do
+    for _, key in pairs (characteristics) do
+      ks [key     ] = ks [key] or #ks+1
+      ks [ks [key]] = "\\rot{" .. key .. "}"
+      cs [#cs+1   ] = "|c"
+    end
+    output:write ("\\begin{longtable}{" .. table.concat (cs) .. "|}\n")
+    output:write ("\\hline\n")
+    output:write (table.concat (ks, " & ") .. "\\\\\n")
+    output:write ("\\hline\n")
+  end
+  for _, model in pairs (models) do
+    local out = { model ["Id"] }
+    for _, characteristic in pairs (characteristics) do
+      local value = model [characteristic]
+      if value == nil then
+        value = "?"
+      elseif value == false then
+        value = "\\faTimes"
+      elseif value == true then
+        value = "\\faCheck"
+      end
+      if ks [characteristic] then
+        out [ks [characteristic]] = tostring (value)
+      end
+    end
+    output:write (table.concat (out, " & ") .. "\\\\\n")
+  end
+  output:write ("\\hline\n")
+  output:write ("\\end{longtable}\n")
+  output:close ()
+  print "Data has been output in characteristics.tex."
+end
+
+-- Fill data and techniques:
 for fields in mcc_data:lines () do
   local x = {}
   for i, key in ipairs (keys.data) do
@@ -213,7 +266,7 @@ for fields in mcc_data:lines () do
   end
 end
 
-do -- set missing techniques to false
+do -- Set missing techniques to false:
   for _, x in pairs (data) do
     for technique in pairs (techniques) do
       x [technique] = x [technique] or value_of (false)
@@ -221,7 +274,7 @@ do -- set missing techniques to false
   end
 end
 
-do
+do -- Export data:
   local count = 0
   for _ in pairs (data) do
     count = count+1
@@ -233,26 +286,14 @@ do
     output:close ()
     print "Data has been output in mcc-data.json."
   end
-  -- do
-  --   local output = assert (io.open ("mcc-data.lua", "w"))
-  --   output:write (Serpent.dump (data, {
-  --     indent   = "  ",
-  --     comment  = false,
-  --     sortkeys = true,
-  --     compact  = false,
-  --   }))
-  --   output:close ()
-  --   print "Data has been output in mcc-data.lua."
-  -- end
 end
 
-do -- filter only best in each examination
-  local examinations = {}
+do -- Sort tools by examination and model:
   for _, x in pairs (data) do
-    if not examinations [x ["Examination"]] then
-      examinations [x ["Examination"]] = {}
+    if not filtered [x ["Examination"]] then
+      filtered [x ["Examination"]] = {}
     end
-    local examination = examinations [x ["Examination"]]
+    local examination = filtered [x ["Examination"]]
     if not examination [x ["Model"]] then
       examination [x ["Model"]] = {}
     end
@@ -262,58 +303,78 @@ do -- filter only best in each examination
     end
     local tool = model [x ["Tool"]]
     if not tool [x ["Year"]] then
-      tool [ x ["Year"]] = {}
+      tool [x ["Year"]] = {}
     end
-    local year = tool [ x ["Year"]]
+    local year = tool [x ["Year"]]
     year [#year+1] = x
   end
-  local filtered = {}
-  for _, examination in pairs (examinations) do
+  for _, examination in pairs (filtered) do
     for _, model in pairs (examination) do
-      local best_count = 0
-      local best_tool  = nil
-      local clock_sum  = math.huge
-      local memory_sum = math.huge
-      for _, year in pairs (model) do
-        for _, t in pairs (year) do
-          local clock  = 0
-          local memory = 0
-          for _, i in pairs (t) do
-            clock  = clock  + i ["Clock Time"]
-            memory = memory + i ["Memory"    ]
+      local tools = {}
+      for _, tool in pairs (model) do
+        for _, year in pairs (tool) do
+          local t = {}
+          for k, v in pairs (year) do
+            t [k] = v
           end
-          if #t > best_count
-          or #t == best_count and clock < clock_sum
-          or #t == best_count and clock == clock_sum and memory < memory_sum then
-            best_count = #t
-            clock_sum  = clock
-            memory_sum = memory
-            best_tool  = t [1]
-          end
+          tools [#tools+1] = t
         end
-        local stored = {}
-        for k, v in pairs (best_tool) do
-          stored [k] = v
+      end
+      local function info_of (t)
+        local count  = 0
+        local clock  = 0
+        local memory = 0
+        for _, x in ipairs (t) do
+          count  = count  + 1
+          clock  = clock  + x ["Clock Time"]
+          memory = memory + x ["Memory"    ]
         end
-        stored ["Clock time"] = nil
-        stored ["Memory"    ] = nil
-        stored ["Fixed size"] = nil
-        stored ["Instance"  ] = nil
-        filtered [best_tool ["Id"]] = stored
+        return {
+          count  = count,
+          clock  = clock,
+          memory = memory,
+        }
+      end
+      table.sort (tools, function (l, r)
+        local li, ri = info_of (l), info_of (r)
+        if li.count > ri.count then
+          return true
+        elseif li.count == ri.count
+           and li.clock <  ri.clock then
+          return true
+        elseif li.count  == ri.count
+           and li.clock  <  ri.clock
+           and li.memory <  ri.memory then
+          return true
+        end
+        return false
+      end)
+      model.sorted = {}
+      for _, t in ipairs (tools) do
+        local ti = info_of (t)
+        model.sorted [#model.sorted+1] = {
+          ["Tool"      ] = t [1] ["Tool"],
+          ["Count"     ] = ti.count,
+          ["Clock Time"] = ti.clock,
+          ["Memory"    ] = ti.memory,
+        }
       end
     end
   end
-  local count = 0
-  for _ in pairs (filtered) do
-    count = count+1
-  end
-  print (count .. " filtered entries.")
-  do
-    local output = assert (io.open ("mcc-filtered.json", "w"))
-    output:write (Json.encode (filtered))
-    output:close ()
-    print "Filtered data has been output in mcc-filtered.json."
-  end
+end
+
+-- do
+--   local count = 0
+--   for _ in pairs (filtered) do
+--     count = count+1
+--   end
+--   print (count .. " filtered entries.")
+--   do
+--     local output = assert (io.open ("mcc-filtered.json", "w"))
+--     output:write (Json.encode (filtered))
+--     output:close ()
+--     print "Filtered data has been output in mcc-filtered.json."
+--   end
   -- do
   --   local output = assert (io.open ("mcc-filtered.lua", "w"))
   --   output:write (Serpent.dump (filtered, {
@@ -325,27 +386,21 @@ do -- filter only best in each examination
   --   output:close ()
   --   print "Filtered data has been output in mcc-filtered.lua."
   -- end
-  do
-    local result = {}
-    for _, t in pairs (filtered) do
-      if not result [t ["Examination"]] then
-        result [t ["Examination"]] = {}
-      end
-      local examination = result [t ["Examination"]]
-      if not examination [t ["Model"]] then
-        examination [t ["Model"]] = {}
-      end
-      local model = examination [t ["Model"]]
-      model.tool = t ["Tool"]
+do
+  local result = {}
+  for e, examination in pairs (filtered) do
+    result [e] = {}
+    for m, model in pairs (examination) do
+      result [e] [m] = model.sorted
     end
-    local output = assert (io.open ("known.lua", "w"))
-    output:write (Serpent.dump (result, {
-      indent   = "  ",
-      comment  = false,
-      sortkeys = true,
-      compact  = false,
-    }))
-    output:close ()
-    print "Known models data has been output in known.lua."
   end
+  local output = assert (io.open ("known.lua", "w"))
+  output:write (Serpent.dump (result, {
+    indent   = "  ",
+    comment  = false,
+    sortkeys = true,
+    compact  = false,
+  }))
+  output:close ()
+  print "Known models data has been output in known.lua."
 end
