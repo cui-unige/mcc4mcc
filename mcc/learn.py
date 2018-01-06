@@ -25,7 +25,7 @@ def load(file_path):
         df = pandas.DataFrame(data)
         # Select only the best tools:
         df = df.loc[df['Rank'] == 1]
-        X = df
+        X = df.drop('Tool', 1)
         Y = df['Tool']
         # Save to redis:
         client.set(digest, True)
