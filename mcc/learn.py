@@ -2,14 +2,18 @@
 
 import argparse
 import json
-import numpy
 import pandas
 import redis
 import statistics
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble  import BaggingClassifier
-from tqdm              import tqdm
-from hashlib           import md5
+import numpy as np
+from sklearn.neighbors      import KNeighborsClassifier
+from sklearn.ensemble       import BaggingClassifier
+from tqdm                   import tqdm
+from hashlib                import md5
+from sklearn.naive_bayes    import GaussianNB
+from sklearn.svm            import SVC, LinearSVC
+from sklearn.neural_network import MLPClassifier
+
 
 def load(file_path):
     digest = md5(open(file_path, 'rb').read()).hexdigest()
@@ -33,7 +37,17 @@ def load(file_path):
         Y = pandas.read_msgpack(client.get(digest + ':Y'))
     return X, Y
 
-def bagging_knn (train_X, train_Y, test_X, test_Y):
+
+def knn(train_X, train_Y, test_X, test_Y):
+    clf = KNeighborsClassifier(
+        n_neighbors=10, weights='distance', n_jobs=4
+    )
+    clf.fit(train_X, train_Y)
+
+    return clf.score(test_X, test_Y)
+
+
+def bagging_knn(train_X, train_Y, test_X, test_Y):
     # Bagging contains n_estimators of
     # KNeighborsClassifier(n_neighbors=10, weights='distance', n_jobs=4).
     # Every knn-classifier will take the half of the training set to learn.
@@ -47,8 +61,49 @@ def bagging_knn (train_X, train_Y, test_X, test_Y):
     # Return the accuracy of guessing:
     return bagging.score(test_X, test_Y)
 
+
+def gaussian_naive_bayes(train_X, train_Y, test_X, test_Y):
+    # http://scikit-learn.org/stable/modules/naive_bayes.html
+    gnb = GaussianNB()
+    gnb.fit(train_X, train_Y)
+
+    return gnb.score(test_X, test_Y)
+
+
+def svm(train_X, train_Y, test_X, test_Y):
+    # http://scikit-learn.org/stable/modules/svm.html
+    # Support Vector Classifier with rbf kernel.
+    clf = SVC()
+    clf.fit(train_X, train_Y)
+
+    return clf.score(test_X, test_Y)
+
+
+def linear_svm(train_X, train_Y, test_X, test_Y):
+    # http://scikit-learn.org/stable/modules/svm.html
+    # Linear Support Vector classifier with rbf kernel.
+    clf = LinearSVC()
+    clf.fit(train_X, train_Y)
+
+    return clf.score(test_X, test_Y)
+
+
+def neural_net(train_X, train_Y, test_X, test_Y):
+    # http://scikit-learn.org/stable/modules/neural_networks_supervised.html
+    # Simple multi-layer neural net using Newton solver.
+    nn = MLPClassifier(solver='lbfgs')
+    nn.fit(train_X, train_Y)
+
+    return nn.score(test_X, test_Y)
+
+
 algorithms = {
+    "KNN": knn,
     "Bagging+knn": bagging_knn,
+    "Gaussian Naive Bayes": gaussian_naive_bayes,
+    "Support Vector Machine": svm,
+    "Linear Support Vector Machine": linear_svm,
+    "Neural Net": neural_net,
 }
 
 if __name__ == '__main__':
