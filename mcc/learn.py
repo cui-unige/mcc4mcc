@@ -43,7 +43,7 @@ def load(file_path):
 
 def knn(train_X, train_Y, test_X, test_Y):
     clf = KNeighborsClassifier(
-        n_neighbors=10, weights='distance', n_jobs=4
+        n_neighbors=10, weights='distance', algorithm='brute'
     )
     clf.fit(train_X, train_Y)
 
@@ -56,8 +56,8 @@ def bagging_knn(train_X, train_Y, test_X, test_Y):
     # Every knn-classifier will take the half of the training set to learn.
     bagging = BaggingClassifier(
         KNeighborsClassifier(
-            n_neighbors=10, weights='distance', n_jobs=4
-        ), max_samples=0.5, max_features=0.5, n_estimators=10
+            n_neighbors=10, weights='distance', algorithm='brute'
+        ), max_samples=0.5, max_features=1, n_estimators=10
     )
     # Train the model:
     bagging.fit(train_X, train_Y)
@@ -100,8 +100,8 @@ def decision_tree(train_X, train_Y, test_X, test_Y):
 
 
 def random_forest(train_X, train_Y, test_X, test_Y):
-    clf = RandomForestClassifier(n_estimators=5)
-    clf = clf.fit(X, Y)
+    clf = RandomForestClassifier(n_estimators=10, max_features=None)
+    clf = clf.fit(train_X, train_Y)
 
     return clf.score(test_X, test_Y)
 
@@ -123,7 +123,7 @@ algorithms = {
     "Linear Support Vector Machine": linear_svm,
     "Neural Net": neural_net,
     "Decision Tree": decision_tree,
-    "Random Forest": random_forest
+    "Random Forest": random_forest,
 }
 
 if __name__ == '__main__':
