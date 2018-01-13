@@ -12,6 +12,8 @@ from tqdm                   import tqdm
 from hashlib                import md5
 from sklearn.naive_bayes    import GaussianNB
 from sklearn.svm            import SVC, LinearSVC
+from sklearn                import tree
+from sklearn.ensemble       import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 
 
@@ -89,6 +91,21 @@ def linear_svm(train_X, train_Y, test_X, test_Y):
     return clf.score(test_X, test_Y)
 
 
+def decision_tree(train_X, train_Y, test_X, test_Y):
+
+    clf = tree.DecisionTreeClassifier()
+    clf.fit(train_X, train_Y)
+
+    return clf.score(test_X, test_Y)
+
+
+def random_forest(train_X, train_Y, test_X, test_Y):
+    clf = RandomForestClassifier(n_estimators=5)
+    clf = clf.fit(X, Y)
+
+    return clf.score(test_X, test_Y)
+
+
 def neural_net(train_X, train_Y, test_X, test_Y):
     # http://scikit-learn.org/stable/modules/neural_networks_supervised.html
     # Simple multi-layer neural net using Newton solver.
@@ -105,6 +122,8 @@ algorithms = {
     "Support Vector Machine": svm,
     "Linear Support Vector Machine": linear_svm,
     "Neural Net": neural_net,
+    "Decision Tree": decision_tree,
+    "Random Forest": random_forest
 }
 
 if __name__ == '__main__':
