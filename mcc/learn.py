@@ -3,39 +3,26 @@
 import argparse
 import json
 import pandas
-import redis
 import statistics
 import numpy as np
+from tqdm                   import tqdm
 from sklearn.neighbors      import KNeighborsClassifier
 from sklearn.ensemble       import BaggingClassifier
-from tqdm                   import tqdm
-from hashlib                import md5
 from sklearn.naive_bayes    import GaussianNB
 from sklearn.svm            import SVC, LinearSVC
 from sklearn.neural_network import MLPClassifier
 
 
 def load(file_path):
-    digest = md5(open(file_path, 'rb').read()).hexdigest()
-    client = redis.StrictRedis(host='localhost', port=6379, db=0)
-    if client.get(digest) is None:
-        # Load the json data into dict:
-        data = json.load(open(file_path))
-        # Convert this dict into dataframe:
-        df = pandas.DataFrame(data)
-        # Select only the best tools:
-        df = df.loc[df['Rank'] == 1]
-        # remove the Tool columns from X.
-        X = df.drop('Tool', 1)
-        Y = df['Tool']
-        # Save to redis:
-        client.set(digest, True)
-        client.set(digest + ':X', X.to_msgpack(compress='zlib'))
-        client.set(digest + ':Y', Y.to_msgpack(compress='zlib'))
-    else:
-        # Read from redis:
-        X = pandas.read_msgpack(client.get(digest + ':X'))
-        Y = pandas.read_msgpack(client.get(digest + ':Y'))
+    # Load the json data into dict:
+    data = json.load(open(file_path))
+    # Convert this dict into dataframe:
+    df = pandas.DataFrame(data)
+    # Select only the best tools:
+    df = df.loc[df['Rank'] == 1]
+    # remove the Tool columns from X.
+    X = df.drop('Tool', 1)
+    Y = df['Tool']
     return X, Y
 
 
