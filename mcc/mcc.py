@@ -14,37 +14,39 @@ if __name__ == "__main__":
     import tempfile
     import tarfile
 
-    parser = argparse.ArgumentParser (description="Model Checker Collection for the Model Checking Contest")
+    parser = argparse.ArgumentParser (
+        description = "Model Checker Collection for the Model Checking Contest"
+    )
     parser.add_argument (
-        "-i", "--input",
+        "--input",
         help    = "input directory or archive",
         type    = str,
         dest    = "input",
         default = os.getcwd (),
     )
     parser.add_argument (
-        "-k", "--known",
+        "--known",
         help    = "data known from models",
         type    = str,
         dest    = "known",
         default = os.getcwd () + "/known.json",
     )
     parser.add_argument (
-        "-l", "--learned",
+        "--learned",
         help    = "data learned from models",
         type    = str,
         dest    = "learned",
         default = os.getcwd () + "/learned.json",
     )
     parser.add_argument (
-        "-e", "--examination",
-        help    = "examniation type",
+        "--examination",
+        help    = "examination type",
         type    = str,
         dest    = "examination",
         default = os.getenv ("BK_EXAMINATION"),
     )
     parser.add_argument (
-        "-t", "--tool",
+        "--tool",
         help    = "tool",
         type    = str,
         dest    = "tool",
@@ -87,7 +89,7 @@ if __name__ == "__main__":
 
     last  = pathlib.PurePath (arguments.input).stem
     split = re.search (r"([^-]+)\-([^-]+)\-([^-]+)$", last)
-    if split == None:
+    if split is None:
         instance = last
         model    = last
     else:
@@ -95,7 +97,6 @@ if __name__ == "__main__":
         model    = split.group (1)
     logging.info (f"Using '{instance}' as instance name.")
     logging.info (f"Using '{model}' as model name.")
-
 
     examination = arguments.examination
     if arguments.tool != None:
@@ -109,20 +110,21 @@ if __name__ == "__main__":
      and model in known [examination]:
         tools = known [examination] [model] ["sorted"]
     else:
-        logging.warning (f"Cannot find known information for {examination} on {model} or {instance}.")
+        logging.warning (f"Cannot find known information for examination {examination} on {model} or {instance}.")
         sys.exit (1)
 
     log = os.getenv ("BK_LOG_FILE")
-    if log == None:
+    if log is None:
         log = tempfile.TemporaryFile ()
 
-    if len (tools) == 0:
+    if not tools:
         logging.error (f"DO NOT COMPETE")
         sys.exit (1)
 
     success = None
     path    = os.path.abspath (arguments.input)
-    for tool in tools:
+    for x in tools:
+        tool = x ["tool"]
         logging.info (f"Starting tool '{tool}'...")
         success = subprocess.call ([
             "docker", "run",

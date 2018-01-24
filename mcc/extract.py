@@ -54,16 +54,22 @@ def value_of (x):
         return False
     elif x == "Unknown":
         return None
-    else:
-        try:
-            return int (x)
-        except ValueError:
-            return x
+    try:
+        return int (x)
+    except ValueError:
+        pass
+    try:
+        return float (x)
+    except ValueError:
+        pass
+    return x
 
 if __name__ == "__main__":
 
     import argparse
     import csv
+    import io
+    import json
     import logging
     import os
     import re
@@ -85,6 +91,20 @@ if __name__ == "__main__":
         type    = str,
         dest    = "characteristics",
         default = os.getcwd () + "/characteristics.csv",
+    )
+    parser.add_argument (
+        "--known",
+        help    = "data known from models",
+        type    = str,
+        dest    = "known",
+        default = os.getcwd () + "/known.json",
+    )
+    parser.add_argument (
+        "--learned",
+        help    = "data learned from models",
+        type    = str,
+        dest    = "learned",
+        default = os.getcwd () + "/learned.json",
     )
     parser.add_argument (
         "-v", "--verbose",
@@ -170,3 +190,71 @@ if __name__ == "__main__":
                 if technique not in entry:
                     entry [technique] = False
             counter.update (1)
+
+    logging.info (f"Sorting data.")
+    size      = len (results)
+    data      = {}
+    tool_year = {}
+    with tqdm (total = len (results)) as counter:
+        for _, entry in results.items ():
+            if entry ["Examination"] not in data:
+                data [entry ["Examination"]] = {}
+            examination = data [entry ["Examination"]]
+            if entry ["Model Id"] not in examination:
+                examination [entry ["Model Id"]] = {}
+            model = examination [entry ["Model Id"]]
+            if entry ["Instance"] not in model:
+                model [entry ["Instance"]] = {}
+            instance = model [entry ["Instance"]]
+            if entry ["Tool"] not in instance:
+                instance [entry ["Tool"]] = {}
+            tool = instance [entry ["Tool"]]
+            if entry ["Tool"] not in tool_year:
+                tool_year [entry ["Tool"]] = 0
+            if entry ["Year"] > tool_year [entry ["Tool"]]:
+                tool_year [entry ["Tool"]] = entry ["Year"]
+            if entry ["Year"] in tool:
+                size -= 1
+                if entry ["Clock Time"] < tool [entry ["Year"]] ["Clock Time"]:
+                    tool [entry ["Year"]] = entry
+            else:
+                tool [entry ["Year"]] = entry
+            counter.update (1)
+
+    logging.info (f"Analyzing known data.")
+    known = {}
+    with tqdm (total = size) as counter:
+        for examination, models in data.items ():
+            known [examination] = {}
+            known_e = known [examination]
+            for model, instances in models.items ():
+                known_e [model] = {}
+                known_m = known_e [model]
+                subresults = {}
+                for instance, tools in instances.items ():
+                    known_m [instance] = {}
+                    known_i = known_m [instance]
+                    subsubresults = {}
+                    for tool, years in tools.items ():
+                        if tool not in subresults:
+                            subresults [tool] = {
+                                "count" : 0,
+                                "time"  : 0,
+                                "memory": 0,
+                            }
+                        for year, entry in years.items ():
+                            if year == tool_year [tool]:
+                                subsubresults [tool] = {
+                                    "time"  : entry ["Clock Time"],
+                                    "memory": entry ["Memory"],
+                                }
+                                subresults [tool] ["count"]  += 1
+                                subresults [tool] ["time"]   += entry ["Clock Time"]
+                                subresults [tool] ["memory"] += entry ["Memory"]
+                            counter.update (1)
+                    s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
+                    known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
+                s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
+                known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
+    with open ("known.json", "w") as output:
+        json.dump (known, output)
