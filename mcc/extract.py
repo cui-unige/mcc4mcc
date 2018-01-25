@@ -84,13 +84,13 @@ def value_of (x):
 
 algorithms = {}
 
-algorithms ["knn"] = KNeighborsClassifier (
+algorithms ["knn"] = lambda _: KNeighborsClassifier (
     n_neighbors = 10,
     weights     = "distance",
     algorithm   = "brute",
 )
 
-algorithms ["bagging-knn"] = BaggingClassifier (
+algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
     KNeighborsClassifier (
         n_neighbors = 10,
         weights     = "distance",
@@ -101,20 +101,20 @@ algorithms ["bagging-knn"] = BaggingClassifier (
     n_estimators = 10,
 )
 
-algorithms ["naive-bayes"] = GaussianNB ()
+algorithms ["naive-bayes"] = lambda _: GaussianNB ()
 
-algorithms ["svm"] = SVC ()
+algorithms ["svm"] = lambda _: SVC ()
 
-algorithms ["linear-svm"] = LinearSVC ()
+algorithms ["linear-svm"] = lambda _: LinearSVC ()
 
-algorithms ["decision-tree"] = tree.DecisionTreeClassifier ()
+algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
 
-algorithms ["random-forest"] = RandomForestClassifier (
+algorithms ["random-forest"] = lambda _: RandomForestClassifier (
     n_estimators = 10,
     max_features = None,
 )
 
-algorithms ["neural-network"] = MLPClassifier (
+algorithms ["neural-network"] = lambda _: MLPClassifier (
     solver = "lbfgs",
 )
 
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     Y = df ["Tool"]
     # Compute efficiency for each algorithm:
     algorithms_results = []
-    for name, algorithm in algorithms.items ():
+    for name, falgorithm in algorithms.items ():
         subresults = []
         logging.info (f"Learning using algorithm: '{name}'.")
         for _ in tqdm (range (arguments.iterations)):
@@ -361,10 +361,9 @@ if __name__ == "__main__":
             test_X        = tmp_X.sample (min (int (n * 0.25), tmp_X.shape [0]))
             test_Y        = Y [test_X.index]
             # Apply algorithm:
-            fit   = algorithm.fit (training_X, training_Y)
-            score = algorithm.score (test_X, test_Y)
-            subresults.append (score)
-        pickle.dump (algorithm, open (f"learned.{name}.p", "wb"))
+            algorithm = falgorithm (True)
+            algorithm.fit (training_X, training_Y)
+            subresults.append (algorithm.score (test_X, test_Y))
         algorithms_results.append ({
             "algorithm": name,
             "min"      : min (subresults),
@@ -372,6 +371,10 @@ if __name__ == "__main__":
             "mean"     : statistics.mean (subresults),
             "median"   : statistics.median (subresults),
         })
+        algorithm = falgorithm (True)
+        algorithm.fit (X, Y)
+        with open (f"learned.{name}.p", "wb") as output:
+            pickle.dump (algorithm, output)
     with open ("learned.json", "w") as output:
         json.dump ({
             "algorithms" : algorithms_results,
