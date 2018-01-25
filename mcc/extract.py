@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import statistics
+import pickle
 import pandas
 from tqdm                   import tqdm
 from sklearn.neighbors      import KNeighborsClassifier
@@ -81,79 +82,46 @@ def value_of (x):
         pass
     return x
 
-def knn(train_X, train_Y, test_X, test_Y):
-    clf = KNeighborsClassifier(
-        n_neighbors=10, weights='distance', algorithm='brute'
-    )
-    clf.fit(train_X, train_Y)
-    return clf.score(test_X, test_Y)
+algorithms = {}
 
-def bagging_knn(train_X, train_Y, test_X, test_Y):
-    # Bagging contains n_estimators of
-    # KNeighborsClassifier(n_neighbors=10, weights='distance', n_jobs=4).
-    # Every knn-classifier will take the half of the training set to learn.
-    bagging = BaggingClassifier(
-        KNeighborsClassifier(
-            n_neighbors=10, weights='distance', algorithm='brute'
-        ), max_samples=0.5, max_features=1, n_estimators=10
-    )
-    # Train the model:
-    bagging.fit(train_X, train_Y)
-    # Return the accuracy of guessing:
-    return bagging.score(test_X, test_Y)
+algorithms ["knn"] = KNeighborsClassifier (
+    n_neighbors = 10,
+    weights     = "distance",
+    algorithm   = "brute",
+)
 
-def gaussian_naive_bayes(train_X, train_Y, test_X, test_Y):
-    # http://scikit-learn.org/stable/modules/naive_bayes.html
-    gnb = GaussianNB()
-    gnb.fit(train_X, train_Y)
-    return gnb.score(test_X, test_Y)
+algorithms ["bagging-knn"] = BaggingClassifier (
+    KNeighborsClassifier (
+        n_neighbors = 10,
+        weights     = "distance",
+        algorithm   = "brute",
+    ),
+    max_samples  = 0.5,
+    max_features = 1,
+    n_estimators = 10,
+)
 
-def svm(train_X, train_Y, test_X, test_Y):
-    # http://scikit-learn.org/stable/modules/svm.html
-    # Support Vector Classifier with rbf kernel.
-    clf = SVC()
-    clf.fit(train_X, train_Y)
-    return clf.score(test_X, test_Y)
+algorithms ["naive-bayes"] = GaussianNB ()
 
-def linear_svm(train_X, train_Y, test_X, test_Y):
-    # http://scikit-learn.org/stable/modules/svm.html
-    # Linear Support Vector classifier with rbf kernel.
-    clf = LinearSVC()
-    clf.fit(train_X, train_Y)
-    return clf.score(test_X, test_Y)
+algorithms ["svm"] = SVC ()
 
-def decision_tree(train_X, train_Y, test_X, test_Y):
-    clf = tree.DecisionTreeClassifier()
-    clf.fit(train_X, train_Y)
-    return clf.score(test_X, test_Y)
+algorithms ["linear-svm"] = LinearSVC ()
 
-def random_forest(train_X, train_Y, test_X, test_Y):
-    clf = RandomForestClassifier(n_estimators=10, max_features=None)
-    clf = clf.fit(train_X, train_Y)
-    return clf.score(test_X, test_Y)
+algorithms ["decision-tree"] = tree.DecisionTreeClassifier ()
 
-def neural_net(train_X, train_Y, test_X, test_Y):
-    # http://scikit-learn.org/stable/modules/neural_networks_supervised.html
-    # Simple multi-layer neural net using Newton solver.
-    nn = MLPClassifier(solver='lbfgs')
-    nn.fit(train_X, train_Y)
-    return nn.score(test_X, test_Y)
+algorithms ["random-forest"] = RandomForestClassifier (
+    n_estimators = 10,
+    max_features = None,
+)
 
-algorithms = {
-    "KNN": knn,
-    "Bagging+knn": bagging_knn,
-    "Gaussian Naive Bayes": gaussian_naive_bayes,
-    "Support Vector Machine": svm,
-    "Linear Support Vector Machine": linear_svm,
-    "Neural Net": neural_net,
-    "Decision Tree": decision_tree,
-    "Random Forest": random_forest,
-}
+algorithms ["neural-network"] = MLPClassifier (
+    solver = "lbfgs",
+)
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser (
-        description = "..." # FIXME
+        description = "Data extractor for the model checker collection"
     )
     parser.add_argument (
         "--results",
@@ -369,8 +337,6 @@ if __name__ == "__main__":
                         cp [key] = translate (value)
                 learned.append (cp)
             counter.update (1)
-    with open ("learned.translation.json", "w") as output:
-        json.dump (translation, output)
 
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
@@ -380,9 +346,10 @@ if __name__ == "__main__":
     X = df.drop ("Tool", 1)
     Y = df ["Tool"]
     # Compute efficiency for each algorithm:
-    for algorithm in algorithms:
+    algorithms_results = []
+    for name, algorithm in algorithms.items ():
         subresults = []
-        print(f"  Algorithm: {algorithm}")
+        logging.info (f"Learning using algorithm: '{name}'.")
         for _ in tqdm (range (arguments.iterations)):
             n             = X.shape [0]
             training_size = int (n * 0.75)
@@ -393,10 +360,20 @@ if __name__ == "__main__":
             # Get the test points:
             test_X        = tmp_X.sample (min (int (n * 0.25), tmp_X.shape [0]))
             test_Y        = Y [test_X.index]
-            subresults.append (algorithms.get (algorithm) (training_X, training_Y, test_X, test_Y))
-        print(f"    Min     : {min                (subresults)}")
-        print(f"    Max     : {max                (subresults)}")
-        print(f"    Mean    : {statistics.mean    (subresults)}")
-        print(f"    Median  : {statistics.median  (subresults)}")
-        print(f"    Stdev   : {statistics.stdev   (subresults)}")
-        print(f"    Variance: {statistics.variance(subresults)}")
+            # Apply algorithm:
+            fit   = algorithm.fit (training_X, training_Y)
+            score = algorithm.score (test_X, test_Y)
+            subresults.append (score)
+        pickle.dump (algorithm, open (f"learned.{name}.p", "wb"))
+        algorithms_results.append ({
+            "algorithm": name,
+            "min"      : min (subresults),
+            "max"      : max (subresults),
+            "mean"     : statistics.mean (subresults),
+            "median"   : statistics.median (subresults),
+        })
+    with open ("learned.json", "w") as output:
+        json.dump ({
+            "algorithms" : algorithms_results,
+            "translation": translation,
+        }, output)

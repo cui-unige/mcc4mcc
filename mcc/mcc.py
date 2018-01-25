@@ -8,6 +8,7 @@ if __name__ == "__main__":
     import logging
     import os
     import pathlib
+    import pickle
     import re
     import subprocess
     import sys
@@ -37,6 +38,12 @@ if __name__ == "__main__":
         type    = str,
         dest    = "learned",
         default = os.getcwd () + "/learned.json",
+    )
+    parser.add_argument (
+        "--algorithm",
+        help    = "machine learning algorithm to use",
+        type    = str,
+        dest    = "algorithm",
     )
     parser.add_argument (
         "--examination",
@@ -69,6 +76,12 @@ if __name__ == "__main__":
     logging.info (f"Reading learned information in '{arguments.learned}'.")
     learned = json.load (io.FileIO (arguments.learned))
 
+    if arguments.algorithm is None:
+        algorithm = sorted (learned ["algorithms"], key = lambda e: e ["mean"], reverse = True) [0] ["algorithm"]
+    else:
+        algorithm = arguments.algorithm
+    logging.info (f"Using machine learning algorithm '{algorithm}'.")
+
     while True:
         if os.path.isfile (arguments.input):
             directory = tempfile.TemporaryDirectory ()
@@ -98,6 +111,13 @@ if __name__ == "__main__":
     logging.info (f"Using '{instance}' as instance name.")
     logging.info (f"Using '{model}' as model name.")
 
+    def translate (x):
+        if x is None:
+            return 0
+        if x in learned.translation:
+            return learned.translation [x]
+        return x
+
     examination = arguments.examination
     if arguments.tool != None:
         logging.info (f"Using only the tool '{arguments.tool}'.")
@@ -111,6 +131,9 @@ if __name__ == "__main__":
         tools = known [examination] [model] ["sorted"]
     else:
         logging.warning (f"Cannot find known information for examination {examination} on {model} or {instance}.")
+        # TODO: read model, extract characteristics, translate them, and find the tool to use.
+        model = pickle.load (open (f"learned.{algorithm}.p", "rb"))
+        model.predict () # http://scikit-learn.org/stable/modules/model_persistence.html
         sys.exit (1)
 
     log = os.getenv ("BK_LOG_FILE")
