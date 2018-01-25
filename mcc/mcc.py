@@ -130,10 +130,11 @@ if __name__ == "__main__":
      and model in known [examination]:
         tools = known [examination] [model] ["sorted"]
     else:
-        logging.warning (f"Cannot find known information for examination {examination} on {model} or {instance}.")
+        logging.warning (f"Cannot find known information for examination '{examination}' on instance '{instance}' or model '{model}'.")
         # TODO: read model, extract characteristics, translate them, and find the tool to use.
-        model = pickle.load (open (f"learned.{algorithm}.p", "rb"))
-        model.predict () # http://scikit-learn.org/stable/modules/model_persistence.html
+        with open (f"learned.{name}.p", "rb") as input:
+            model = pickle.load (input)
+            model.predict () # http://scikit-learn.org/stable/modules/model_persistence.html
         sys.exit (1)
 
     log = os.getenv ("BK_LOG_FILE")
