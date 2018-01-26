@@ -156,7 +156,7 @@ if __name__ == "__main__":
         help    = "Number of iterations",
         type    = int,
         dest    = "iterations",
-        default = 100,
+        default = 10,
     )
     arguments = parser.parse_args ()
     logging.basicConfig (level = logging.INFO)
@@ -297,13 +297,12 @@ if __name__ == "__main__":
                             counter.update (1)
                     s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
                     known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                    rank = 0
+                    rank = 1
                     for x in known_i ["sorted"]:
+                        tool  = x ["tool"]
+                        entry = tools [tool] [tool_year [tool]]
+                        entry ["Rank"] = rank
                         rank += 1
-                        for tool, years in tools.items ():
-                            for year, entry in years.items ():
-                                if year == tool_year [tool]:
-                                    entry ["Rank"] = rank
                 s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
                 known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
     with open ("known.json", "w") as output:
@@ -330,18 +329,27 @@ if __name__ == "__main__":
             return x
     with tqdm (total = len (results)) as counter:
         for _, entry in results.items ():
-            if entry ["Year"] == tool_year [entry ["Tool"]]:
+            if  entry ["Year"] == tool_year [entry ["Tool"]] \
+            and "Rank" in entry \
+            and entry ["Rank"] == 1:
                 cp = {}
                 for key, value in entry.items ():
-                    if key != "Id" and key != "Model Id" and key != "Year" and key != "Instance":
+                    if  key != "Id" \
+                    and key != "Model Id" \
+                    and key != "Year" \
+                    and key != "Instance" \
+                    and key != "Memory" \
+                    and key != "Clock Time" \
+                    and key != "Parameterised" \
+                    and key != "Rank" \
+                    and key != "Surprise" \
+                    and key not in techniques:
                         cp [key] = translate (value)
                 learned.append (cp)
             counter.update (1)
-
+    logging.info (f"Using {len (learned)} entries for learning.")
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
-    # Select only the best tools:
-    df = df.loc [df ["Rank"] == 1]
     # Remove the Tool columns from X.
     X = df.drop ("Tool", 1)
     Y = df ["Tool"]

@@ -1,0 +1,95 @@
+#! /usr/bin/env bash
+
+set -x
+set -e
+
+# Clean:
+VBoxManage controlvm "mcc4mcc" \
+  poweroff \
+  || true
+VBoxManage modifyvm "mcc4mcc" \
+  --hdb "none" \
+  || true
+VBoxManage unregistervm "mcc4mcc" \
+  --delete \
+  || true
+cp "ToolSubmissionKit/mcc2018.vmdk" \
+   "mcc4mcc.vmdk"
+
+# Launch the virtual machine:
+VBoxManage createvm \
+  --name "mcc4mcc" \
+  --ostype "Debian_64" \
+  --register
+VBoxManage storagectl "mcc4mcc" \
+  --name "IDE Controller" \
+  --add "ide" \
+  --bootable "on"
+VBoxManage modifyvm "mcc4mcc" \
+  --description "Model Checker Collection for the Model Checking Contest" \
+  --memory 8192 \
+  --cpus 4 \
+  --hda "mcc4mcc.vmdk" \
+  --hdb "$(pwd)/ToolSubmissionKit/mcc2018-input.vmdk" \
+  --natpf1 ssh,tcp,,2222,,22
+VBoxManage startvm "mcc4mcc" \
+  --type "headless"
+
+# Install dependencies:
+ssh \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -p 2222 \
+  root@localhost \
+  'bash -s' <<'EOS'
+apt-get update  --yes
+apt-get install --yes \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg2 \
+  software-properties-common
+curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg \
+  | apt-key add -
+apt-key fingerprint 0EBFCD88
+add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+   $(lsb_release -cs) \
+   stable"
+apt-get update  --yes
+apt-get install --yes \
+  docker-ce \
+  python3-pip
+pip3 install numpy
+pip3 install scikit-learn
+pip3 install xmltodict
+mkdir -p     /usr/local/share/mcc4mcc
+chown -R mcc /usr/local/share/mcc4mcc
+EOS
+
+# Install mcc4mcc:
+scp \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  mcc/*.py mcc/*.json mcc/*.p \
+  mcc@localhost:BenchKit/bin/
+scp \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  mcc/*.json mcc/*.p \
+  mcc@localhost:/usr/local/share/mcc4mcc/
+scp \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  BenchKit_head.sh \
+  mcc@localhost:BenchKit/
+
+# Install docker images:
+# * set docker to use all resources
