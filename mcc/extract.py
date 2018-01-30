@@ -82,12 +82,21 @@ def value_of (x):
         pass
     return x
 
+
+def distance(x, y, bound=2):
+    # we suppose x and y have the same shape and are numpy array.
+    diff = abs(x - y)
+    diff[diff > bound] = bound
+    return diff.sum()
+
+
 algorithms = {}
 
 algorithms ["knn"] = lambda _: KNeighborsClassifier (
     n_neighbors = 10,
     weights     = "distance",
     algorithm   = "brute",
+    metric      = distance
 )
 
 algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
@@ -95,6 +104,7 @@ algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
         n_neighbors = 10,
         weights     = "distance",
         algorithm   = "brute",
+        metric      = distance
     ),
     max_samples  = 0.5,
     max_features = 1,
