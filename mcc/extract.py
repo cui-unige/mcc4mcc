@@ -158,6 +158,12 @@ if __name__ == "__main__":
         dest    = "iterations",
         default = 10,
     )
+    parser.add_argument(
+        "--distance",
+        help    = "Allowed distance from the best tool (in percent)",
+        type    = int,
+        dest    = "distance",
+    )
     arguments = parser.parse_args ()
     logging.basicConfig (
         level  = logging.INFO,
@@ -268,7 +274,8 @@ if __name__ == "__main__":
             counter.update (1)
 
     logging.info (f"Analyzing known data.")
-    known = {}
+    known    = {}
+    distance = arguments.distance
     with tqdm (total = size) as counter:
         for examination, models in data.items ():
             known [examination] = {}
@@ -299,15 +306,32 @@ if __name__ == "__main__":
                                 subresults [tool] ["memory"] += entry ["Memory"]
                             counter.update (1)
                     s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
+                    # Select only the tools that are within a distance from the best:
                     known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                    rank = 1
-                    for x in known_i ["sorted"]:
-                        tool  = x ["tool"]
-                        entry = tools [tool] [tool_year [tool]]
-                        entry ["Rank"] = rank
-                        rank += 1
+                    if known_i ["sorted"]:
+                        best = known_i ["sorted"] [0]
+                        for x in known_i ["sorted"]:
+                            tool  = x ["tool"]
+                            entry = tools [tool] [tool_year [tool]]
+                            if  isinstance (distance, (int, float)) \
+                            and abs (entry ["Clock Time"] / best ["time"]) <= 1+distance:
+                                entry ["Selected"] = True
+                            elif distance is None and best ["tool"] == tool:
+                                entry ["Selected"] = True
+                    else:
+                        logging.debug (f"No data for {examination} / {model} / {instance} / {tool}.")
                 s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
                 known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
+                # If no distance is set, select all tools that reach the maximum count:
+                if distance is None and known_m ["sorted"]:
+                    best = known_m ["sorted"] [0]
+                    for x in known_m ["sorted"]:
+                        if x ["count"] == best ["count"]:
+                            for instance, tools in instances.items ():
+                                tool  = x ["tool"]
+                                if tool in tools and tool_year [tool] in tools [tool]:
+                                    entry = tools [tool] [tool_year [tool]]
+                                    entry ["Selected"] = True
     with open ("known.json", "w") as output:
         json.dump (known, output)
 
@@ -333,8 +357,8 @@ if __name__ == "__main__":
     with tqdm (total = len (results)) as counter:
         for _, entry in results.items ():
             if  entry ["Year"] == tool_year [entry ["Tool"]] \
-            and "Rank" in entry \
-            and entry ["Rank"] == 1:
+            and "Selected" in entry \
+            and entry ["Selected"]:
                 cp = {}
                 for key, value in entry.items ():
                     if  key != "Id" \
@@ -344,7 +368,7 @@ if __name__ == "__main__":
                     and key != "Memory" \
                     and key != "Clock Time" \
                     and key != "Parameterised" \
-                    and key != "Rank" \
+                    and key != "Selected" \
                     and key != "Surprise" \
                     and key not in techniques:
                         cp [key] = translate (value)
@@ -354,7 +378,7 @@ if __name__ == "__main__":
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
     # Remove the Tool columns from X.
-    X = df.drop ("Tool", 1)
+    X = df
     Y = df ["Tool"]
     # Compute efficiency for each algorithm:
     algorithms_results = []
@@ -369,12 +393,12 @@ if __name__ == "__main__":
             # Remove the training points:
             tmp_X         = pandas.concat ([X, training_X]).drop_duplicates (keep = False)
             # Get the test points:
-            test_X        = tmp_X.sample (min (int (n * 0.25), tmp_X.shape [0]))
+            test_X        = tmp_X.sample (min (n-training_size, tmp_X.shape [0]))
             test_Y        = Y [test_X.index]
             # Apply algorithm:
-            algorithm = falgorithm (True)
-            algorithm.fit (training_X, training_Y)
-            subresults.append (algorithm.score (test_X, test_Y))
+            algorithm     = falgorithm (True)
+            algorithm.fit (training_X.drop ("Tool", 1), training_Y)
+            subresults.append (algorithm.score (test_X.drop ("Tool", 1), test_Y))
         algorithms_results.append ({
             "algorithm": name,
             "min"      : min (subresults),
@@ -390,7 +414,7 @@ if __name__ == "__main__":
         logging.info (f"  Stdev   : {statistics.stdev   (subresults)}")
         logging.info (f"  Variance: {statistics.variance(subresults)}")
         algorithm = falgorithm (True)
-        algorithm.fit (X, Y)
+        algorithm.fit (X.drop ("Tool", 1), Y)
         with open (f"learned.{name}.p", "wb") as output:
             pickle.dump (algorithm, output)
     with open ("learned.json", "w") as output:
