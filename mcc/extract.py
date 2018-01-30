@@ -386,8 +386,8 @@ if __name__ == "__main__":
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
     # Remove the Tool columns from X.
-    X = df
-    Y = df ["Tool"]
+    X = df.drop_duplicates (keep = False) # FIXME: no drop duplicates here?
+    Y = X ["Tool"]
     # Compute efficiency for each algorithm:
     algorithms_results = []
     for name, falgorithm in algorithms.items ():
@@ -403,6 +403,7 @@ if __name__ == "__main__":
             # Get the test points:
             test_X        = tmp_X.sample (min (n-training_size, tmp_X.shape [0]))
             test_Y        = Y [test_X.index]
+            # FIXME: print (df.shape [0], X.shape [0], training_X.shape [0], tmp_X.shape [0], test_X.shape [0])
             # Apply algorithm:
             algorithm     = falgorithm (True)
             algorithm.fit (training_X.drop ("Tool", 1), training_Y)
