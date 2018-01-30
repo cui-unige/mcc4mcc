@@ -382,6 +382,13 @@ if __name__ == "__main__":
             "mean"     : statistics.mean (subresults),
             "median"   : statistics.median (subresults),
         })
+        logging.info (f"Algorithm: {name}")
+        logging.info (f"  Min     : {min                (subresults)}")
+        logging.info (f"  Max     : {max                (subresults)}")
+        logging.info (f"  Mean    : {statistics.mean    (subresults)}")
+        logging.info (f"  Median  : {statistics.median  (subresults)}")
+        logging.info (f"  Stdev   : {statistics.stdev   (subresults)}")
+        logging.info (f"  Variance: {statistics.variance(subresults)}")
         algorithm = falgorithm (True)
         algorithm.fit (X, Y)
         with open (f"learned.{name}.p", "wb") as output:
