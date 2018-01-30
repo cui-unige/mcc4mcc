@@ -159,7 +159,10 @@ if __name__ == "__main__":
         default = 10,
     )
     arguments = parser.parse_args ()
-    logging.basicConfig (level = logging.INFO)
+    logging.basicConfig (
+        level  = logging.INFO,
+        format = "%(levelname)s: %(message)s",
+    )
 
     techniques = {}
 
