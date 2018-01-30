@@ -9,14 +9,18 @@ import re
 import statistics
 import pickle
 import pandas
-from tqdm                   import tqdm
-from sklearn.neighbors      import KNeighborsClassifier
-from sklearn.ensemble       import BaggingClassifier
-from sklearn.naive_bayes    import GaussianNB
-from sklearn.svm            import SVC, LinearSVC
-from sklearn                import tree
-from sklearn.ensemble       import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
+from tqdm                               import tqdm
+from sklearn.neighbors                  import KNeighborsClassifier
+from sklearn.ensemble                   import BaggingClassifier, AdaBoostClassifier
+from sklearn.naive_bayes                import GaussianNB
+from sklearn.svm                        import SVC, LinearSVC
+from sklearn                            import tree
+from sklearn.ensemble                   import RandomForestClassifier
+from sklearn.neural_network             import MLPClassifier
+from sklearn.model_selection            import train_test_split
+from sklearn.discriminant_analysis      import QuadraticDiscriminantAnalysis
+from sklearn.gaussian_process           import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels   import RBF
 
 CHARACTERISTICS = [
     "Id",
@@ -90,28 +94,32 @@ def knn_distance (x, y, bound = 2):
 
 algorithms = {}
 
-algorithms ["knn"] = lambda _: KNeighborsClassifier (
-    n_neighbors = 10,
-    weights     = "distance",
-    algorithm   = "brute",
-    metric      = knn_distance
-)
+# algorithms ["knn"] = lambda _: KNeighborsClassifier (
+#     n_neighbors = 10,
+#     weights     = "distance",
+#     metric      = knn_distance,
+#     n_jobs      = 4,
+# )
 
-algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
-    KNeighborsClassifier (
-        n_neighbors = 10,
-        weights     = "distance",
-        algorithm   = "brute",
-        metric      = knn_distance
-    ),
-    max_samples  = 0.5,
-    max_features = 1,
-    n_estimators = 10,
-)
+# algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
+#     KNeighborsClassifier (
+#         n_neighbors = 10,
+#         weights     = "distance",
+#         metric      = knn_distance
+#     ),
+#     max_samples  = 0.5,
+#     max_features = 1,
+#     n_estimators = 10,
+#     n_jobs       = 4,
+# )
 
 algorithms ["naive-bayes"] = lambda _: GaussianNB ()
 
 algorithms ["svm"] = lambda _: SVC ()
+
+algorithms ["ada boost"] = lambda _: AdaBoostClassifier()
+
+algorithms ["gaussian process classifier"] = lambda _: GaussianProcessClassifier(1.0 * RBF(1.0))
 
 algorithms ["linear-svm"] = lambda _: LinearSVC ()
 
@@ -385,29 +393,21 @@ if __name__ == "__main__":
     logging.info (f"Using {len (learned)} entries for learning.")
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
-    # Remove the Tool columns from X.
-    X = df.drop_duplicates (keep = False) # FIXME: no drop duplicates here?
-    Y = X ["Tool"]
     # Compute efficiency for each algorithm:
     algorithms_results = []
     for name, falgorithm in algorithms.items ():
         subresults = []
         logging.info (f"Learning using algorithm: '{name}'.")
         for _ in tqdm (range (arguments.iterations)):
-            n             = X.shape [0]
-            training_size = int (n * 0.75)
-            training_X    = X.sample (training_size)
-            training_Y    = Y [training_X.index]
-            # Remove the training points:
-            tmp_X         = pandas.concat ([X, training_X]).drop_duplicates (keep = False)
-            # Get the test points:
-            test_X        = tmp_X.sample (min (n-training_size, tmp_X.shape [0]))
-            test_Y        = Y [test_X.index]
-            # FIXME: print (df.shape [0], X.shape [0], training_X.shape [0], tmp_X.shape [0], test_X.shape [0])
+            train, test = train_test_split(df)
+            training_X  = train.drop("Tool", 1)
+            training_Y  = train["Tool"]
+            test_X      = test.drop("Tool", 1)
+            test_Y      = test["Tool"]
             # Apply algorithm:
-            algorithm     = falgorithm (True)
-            algorithm.fit (training_X.drop ("Tool", 1), training_Y)
-            subresults.append (algorithm.score (test_X.drop ("Tool", 1), test_Y))
+            algorithm   = falgorithm (True)
+            algorithm.fit (training_X, training_Y)
+            subresults.append (algorithm.score (test_X, test_Y))
         algorithms_results.append ({
             "algorithm": name,
             "min"      : min (subresults),
@@ -423,7 +423,7 @@ if __name__ == "__main__":
         logging.info (f"  Stdev   : {statistics.stdev   (subresults)}")
         logging.info (f"  Variance: {statistics.variance(subresults)}")
         algorithm = falgorithm (True)
-        algorithm.fit (X.drop ("Tool", 1), Y)
+        algorithm.fit (df.drop("Tool", 1), df["Tool"])
         with open (f"learned.{name}.p", "wb") as output:
             pickle.dump (algorithm, output)
     with open ("learned.json", "w") as output:
