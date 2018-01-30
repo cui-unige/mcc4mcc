@@ -189,9 +189,9 @@ if __name__ == "__main__":
         # fields that were used during learning.
         tools = [ { "tool": translate_back (predicted [0]) } ]
 
-    log = os.getenv ("BK_LOG_FILE")
-    if log is None:
-        log = tempfile.TemporaryFile ()
+    # log = os.getenv ("BK_LOG_FILE")
+    # if log is None:
+    #     log = tempfile.TemporaryFile ()
 
     if not tools:
         logging.error (f"DO NOT COMPETE")
@@ -200,18 +200,21 @@ if __name__ == "__main__":
     success = None
     path    = os.path.abspath (arguments.input)
     for x in tools:
-        tool = x ["tool"]
+        tool    = x ["tool"]
         logging.info (f"Starting tool '{tool}'...")
-        success = subprocess.call ([
-            "docker", "run",
+        command = [
+            "docker",
+            "run",
             "--volume", f"{path}:/mcc-data",
             "--workdir", "/mcc-data",
-            "--env", f"BK_TOOL={tool}",
-            "--env", f"BK_EXAMINATION={examination}",
-            "--env", f"BK_INPUT={last}",
-            "--env", f"BK_LOG_FILE={log}",
-            f"mcc/{tool}",
-        ])
+        ]
+        for key, value in os.environ.items ():
+            if key.startswith ("BK_"):
+                command.append ("--env")
+                command.append (f"{key}={value}")
+        command.append (f"mcc/{tool}")
+        logging.info (f"Running {command}.")
+        success = subprocess.call (command)
         if success == 0:
             break
     if success != 0:
