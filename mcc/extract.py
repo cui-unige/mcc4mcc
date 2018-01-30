@@ -18,9 +18,6 @@ from sklearn                            import tree
 from sklearn.ensemble                   import RandomForestClassifier
 from sklearn.neural_network             import MLPClassifier
 from sklearn.model_selection            import train_test_split
-from sklearn.discriminant_analysis      import QuadraticDiscriminantAnalysis
-from sklearn.gaussian_process           import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels   import RBF
 
 CHARACTERISTICS = [
     "Id",
@@ -98,7 +95,6 @@ algorithms = {}
 #     n_neighbors = 10,
 #     weights     = "distance",
 #     metric      = knn_distance,
-#     n_jobs      = 4,
 # )
 
 # algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
@@ -110,7 +106,6 @@ algorithms = {}
 #     max_samples  = 0.5,
 #     max_features = 1,
 #     n_estimators = 10,
-#     n_jobs       = 4,
 # )
 
 algorithms ["naive-bayes"] = lambda _: GaussianNB ()
@@ -119,20 +114,19 @@ algorithms ["svm"] = lambda _: SVC ()
 
 algorithms ["ada boost"] = lambda _: AdaBoostClassifier()
 
-algorithms ["gaussian process classifier"] = lambda _: GaussianProcessClassifier(1.0 * RBF(1.0))
-
 algorithms ["linear-svm"] = lambda _: LinearSVC ()
 
 algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
 
 algorithms ["random-forest"] = lambda _: RandomForestClassifier (
-    n_estimators = 10,
+    n_estimators = 20,
     max_features = None,
 )
 
 algorithms ["neural-network"] = lambda _: MLPClassifier (
     solver = "lbfgs",
 )
+
 
 if __name__ == "__main__":
 
@@ -174,17 +168,8 @@ if __name__ == "__main__":
         dest    = "iterations",
         default = 10,
     )
-    parser.add_argument(
-        "--distance",
-        help    = "Allowed distance from the best tool (in percent)",
-        type    = int,
-        dest    = "distance",
-    )
     arguments = parser.parse_args ()
-    logging.basicConfig (
-        level  = logging.INFO,
-        format = "%(levelname)s: %(message)s",
-    )
+    logging.basicConfig (level = logging.INFO)
 
     techniques = {}
 
@@ -290,8 +275,7 @@ if __name__ == "__main__":
             counter.update (1)
 
     logging.info (f"Analyzing known data.")
-    known    = {}
-    distance = arguments.distance
+    known = {}
     with tqdm (total = size) as counter:
         for examination, models in data.items ():
             known [examination] = {}
@@ -322,32 +306,15 @@ if __name__ == "__main__":
                                 subresults [tool] ["memory"] += entry ["Memory"]
                             counter.update (1)
                     s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
-                    # Select only the tools that are within a distance from the best:
                     known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                    if known_i ["sorted"]:
-                        best = known_i ["sorted"] [0]
-                        for x in known_i ["sorted"]:
-                            tool  = x ["tool"]
-                            entry = tools [tool] [tool_year [tool]]
-                            if  isinstance (distance, (int, float)) \
-                            and abs (entry ["Clock Time"] / best ["time"]) <= 1+distance:
-                                entry ["Selected"] = True
-                            elif distance is None and best ["tool"] == tool:
-                                entry ["Selected"] = True
-                    else:
-                        logging.debug (f"No data for {examination} / {model} / {instance} / {tool}.")
+                    rank = 1
+                    for x in known_i ["sorted"]:
+                        tool  = x ["tool"]
+                        entry = tools [tool] [tool_year [tool]]
+                        entry ["Rank"] = rank
+                        rank += 1
                 s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
                 known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                # If no distance is set, select all tools that reach the maximum count:
-                if distance is None and known_m ["sorted"]:
-                    best = known_m ["sorted"] [0]
-                    for x in known_m ["sorted"]:
-                        if x ["count"] == best ["count"]:
-                            for instance, tools in instances.items ():
-                                tool  = x ["tool"]
-                                if tool in tools and tool_year [tool] in tools [tool]:
-                                    entry = tools [tool] [tool_year [tool]]
-                                    entry ["Selected"] = True
     with open ("known.json", "w") as output:
         json.dump (known, output)
 
@@ -373,8 +340,8 @@ if __name__ == "__main__":
     with tqdm (total = len (results)) as counter:
         for _, entry in results.items ():
             if  entry ["Year"] == tool_year [entry ["Tool"]] \
-            and "Selected" in entry \
-            and entry ["Selected"]:
+            and "Rank" in entry \
+            and entry ["Rank"] == 1:
                 cp = {}
                 for key, value in entry.items ():
                     if  key != "Id" \
@@ -384,7 +351,7 @@ if __name__ == "__main__":
                     and key != "Memory" \
                     and key != "Clock Time" \
                     and key != "Parameterised" \
-                    and key != "Selected" \
+                    and key != "Rank" \
                     and key != "Surprise" \
                     and key not in techniques:
                         cp [key] = translate (value)
