@@ -171,7 +171,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--distance",
         help    = "Allowed distance from the best tool (in percent)",
-        type    = int,
+        type    = float,
         dest    = "distance",
     )
     arguments = parser.parse_args ()
