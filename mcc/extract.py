@@ -174,6 +174,13 @@ if __name__ == "__main__":
         type    = float,
         dest    = "distance",
     )
+    parser.add_argument(
+        "--duplicates",
+        help    = "Allow duplicate entries",
+        type    = bool,
+        dest    = "duplicates",
+        default = False,
+    )
     arguments = parser.parse_args ()
     logging.basicConfig (
         level  = logging.INFO,
@@ -374,9 +381,13 @@ if __name__ == "__main__":
                         cp [key] = translate (value)
                 learned.append (cp)
             counter.update (1)
-    logging.info (f"Using {len (learned)} entries for learning.")
+    logging.info (f"Select {len (learned)} best entries.")
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
+    # Remove duplicate entries if required:
+    if arguments.duplicates:
+        df = df.drop_duplicates (keep="first")
+    logging.info (f"Using {df.shape [0]} non duplicate entries for learning.")
     # Compute efficiency for each algorithm:
     algorithms_results = []
     for name, falgorithm in algorithms.items ():
