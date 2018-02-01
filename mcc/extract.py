@@ -318,28 +318,18 @@ if __name__ == "__main__":
                     s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
                     # Select only the tools that are within a distance from the best:
                     known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                    if known_i ["sorted"]:
-                        best = known_i ["sorted"] [0]
-                        for x in known_i ["sorted"]:
-                            tool  = x ["tool"]
-                            entry = tools [tool] [tool_year [tool]]
-                            if  isinstance (distance, (int, float)) \
-                            and abs (entry ["Clock Time"] / best ["time"]) <= 1+distance:
-                                entry ["Selected"] = True
-                            elif distance is None and best ["tool"] == tool:
-                                entry ["Selected"] = True
-                    else:
-                        logging.debug (f"No data for {examination} / {model} / {instance} / {tool}.")
                 s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
                 known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                # If no distance is set, select all tools that reach the maximum count:
-                if distance is None and known_m ["sorted"]:
+                # Select all tools that reach both the maximum count and the expected distance from the best:
+                if known_m ["sorted"]:
                     best = known_m ["sorted"] [0]
                     for x in known_m ["sorted"]:
                         if x ["count"] == best ["count"]:
                             for instance, tools in instances.items ():
                                 tool  = x ["tool"]
-                                if tool in tools and tool_year [tool] in tools [tool]:
+                                if  tool in tools \
+                                and tool_year [tool] in tools [tool] \
+                                and (distance is None or x ["time"] / best ["time"] <= (1+distance)):
                                     entry = tools [tool] [tool_year [tool]]
                                     entry ["Selected"] = True
     with open ("known.json", "w") as output:
