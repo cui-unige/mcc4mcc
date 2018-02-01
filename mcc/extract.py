@@ -85,6 +85,8 @@ def value_of (x):
 
 def knn_distance (x, y, bound = 2):
     # we suppose x and y have the same shape and are numpy array.
+    # FIXME: we should only reduce the distance to the bound when values
+    # are not -1, 0 or 1, that encode the booleans.
     diff = abs (x - y)
     diff [diff > bound] = bound
     return diff.sum ()
