@@ -91,45 +91,6 @@ def knn_distance (x, y, bound = 2):
     diff [diff > bound] = bound
     return diff.sum ()
 
-algorithms = {}
-
-# algorithms ["knn"] = lambda _: KNeighborsClassifier (
-#     n_neighbors = 10,
-#     weights     = "distance",
-#     metric      = knn_distance,
-# )
-
-# algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
-#     KNeighborsClassifier (
-#         n_neighbors = 10,
-#         weights     = "distance",
-#         metric      = knn_distance
-#     ),
-#     max_samples  = 0.5,
-#     max_features = 1,
-#     n_estimators = 10,
-# )
-
-algorithms ["naive-bayes"] = lambda _: GaussianNB ()
-
-algorithms ["svm"] = lambda _: SVC ()
-
-algorithms ["ada boost"] = lambda _: AdaBoostClassifier()
-
-algorithms ["linear-svm"] = lambda _: LinearSVC ()
-
-algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
-
-algorithms ["random-forest"] = lambda _: RandomForestClassifier (
-    n_estimators = 20,
-    max_features = None,
-)
-
-algorithms ["neural-network"] = lambda _: MLPClassifier (
-    solver = "lbfgs",
-)
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser (
@@ -187,6 +148,46 @@ if __name__ == "__main__":
     logging.basicConfig (
         level  = logging.INFO,
         format = "%(levelname)s: %(message)s",
+    )
+
+    algorithms = {}
+
+    # Do not include these algorithms with duplicates,
+    # as they are very slow.
+    if not arguments.duplicates:
+        algorithms ["knn"] = lambda _: KNeighborsClassifier (
+            n_neighbors = 10,
+            weights     = "distance",
+            metric      = knn_distance,
+        )
+        algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
+            KNeighborsClassifier (
+                n_neighbors = 10,
+                weights     = "distance",
+                metric      = knn_distance
+            ),
+            max_samples  = 0.5,
+            max_features = 1,
+            n_estimators = 10,
+        )
+
+    algorithms ["naive-bayes"] = lambda _: GaussianNB ()
+
+    algorithms ["svm"] = lambda _: SVC ()
+
+    algorithms ["ada boost"] = lambda _: AdaBoostClassifier()
+
+    algorithms ["linear-svm"] = lambda _: LinearSVC ()
+
+    algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
+
+    algorithms ["random-forest"] = lambda _: RandomForestClassifier (
+        n_estimators = 20,
+        max_features = None,
+    )
+
+    algorithms ["neural-network"] = lambda _: MLPClassifier (
+        solver = "lbfgs",
     )
 
     techniques = {}
