@@ -86,14 +86,13 @@ def value_of (x):
 
 def knn_distance(x, y, bound=2):
     # we suppose x and y have the same shape and are numpy array.
-    # we create a mask for each vector. Value are true when it isn't a boolean
-    # "*" operator is an "and"
-    # we use "+" as the "or" between the two mask and then juste change
-    # the value where the mask is True.
-    x_mask = (x != 0) * (x != 1) * (x != -1)
-    y_mask = (y != 0) * (y != 1) * (y != -1)
+    # we create a mask for each vector. Values are true when it's
+    # between [-1,+1]. The "*" operator is an "and"
+    # We "and" the two mask and  change the values where the mask is True.
+    x_mask = (x >= -1) * (x <= 1)
+    y_mask = (y >= -1) * (y <= 1)
     diff = abs(x - y)
-    diff[x_mask + y_mask] = bound
+    diff[~(x_mask * y_mask)] = bound
     return diff.sum()
 
 
