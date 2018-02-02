@@ -393,7 +393,7 @@ if __name__ == "__main__":
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
     # Remove duplicate entries if required:
-    if arguments.duplicates:
+    if not arguments.duplicates:
         df = df.drop_duplicates (keep="first")
     logging.info (f"Using {df.shape [0]} non duplicate entries for learning.")
     # Compute efficiency for each algorithm:
