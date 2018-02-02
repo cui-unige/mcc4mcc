@@ -9,14 +9,15 @@ import re
 import statistics
 import pickle
 import pandas
-from tqdm                   import tqdm
-from sklearn.neighbors      import KNeighborsClassifier
-from sklearn.ensemble       import BaggingClassifier
-from sklearn.naive_bayes    import GaussianNB
-from sklearn.svm            import SVC, LinearSVC
-from sklearn                import tree
-from sklearn.ensemble       import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
+from tqdm                               import tqdm
+from sklearn.neighbors                  import KNeighborsClassifier
+from sklearn.ensemble                   import BaggingClassifier, AdaBoostClassifier
+from sklearn.naive_bayes                import GaussianNB
+from sklearn.svm                        import SVC, LinearSVC
+from sklearn                            import tree
+from sklearn.ensemble                   import RandomForestClassifier
+from sklearn.neural_network             import MLPClassifier
+from sklearn.model_selection            import train_test_split
 
 CHARACTERISTICS = [
     "Id",
@@ -83,50 +84,17 @@ def value_of (x):
     return x
 
 
-def distance(x, y, bound=2):
+def knn_distance(x, y, bound=2):
     # we suppose x and y have the same shape and are numpy array.
+    # we create a mask for each vector. Values are true when it's
+    # between [-1,+1]. The "*" operator is an "and"
+    # We "and" the two mask and  change the values where the mask is True.
+    x_mask = (x >= -1) * (x <= 1)
+    y_mask = (y >= -1) * (y <= 1)
     diff = abs(x - y)
-    diff[diff > bound] = bound
+    diff[~(x_mask * y_mask)] = bound
     return diff.sum()
 
-
-algorithms = {}
-
-algorithms ["knn"] = lambda _: KNeighborsClassifier (
-    n_neighbors = 10,
-    weights     = "distance",
-    algorithm   = "brute",
-    metric      = distance
-)
-
-algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
-    KNeighborsClassifier (
-        n_neighbors = 10,
-        weights     = "distance",
-        algorithm   = "brute",
-        metric      = distance
-    ),
-    max_samples  = 0.5,
-    max_features = 1,
-    n_estimators = 10,
-)
-
-algorithms ["naive-bayes"] = lambda _: GaussianNB ()
-
-algorithms ["svm"] = lambda _: SVC ()
-
-algorithms ["linear-svm"] = lambda _: LinearSVC ()
-
-algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
-
-algorithms ["random-forest"] = lambda _: RandomForestClassifier (
-    n_estimators = 10,
-    max_features = None,
-)
-
-algorithms ["neural-network"] = lambda _: MLPClassifier (
-    solver = "lbfgs",
-)
 
 if __name__ == "__main__":
 
@@ -168,8 +136,64 @@ if __name__ == "__main__":
         dest    = "iterations",
         default = 10,
     )
+    parser.add_argument(
+        "--distance",
+        help    = "Allowed distance from the best tool (in percent)",
+        type    = float,
+        dest    = "distance",
+    )
+    parser.add_argument(
+        "--duplicates",
+        help    = "Allow duplicate entries",
+        type    = bool,
+        dest    = "duplicates",
+        default = False,
+    )
     arguments = parser.parse_args ()
-    logging.basicConfig (level = logging.INFO)
+    logging.basicConfig (
+        level  = logging.INFO,
+        format = "%(levelname)s: %(message)s",
+    )
+
+    algorithms = {}
+
+    # Do not include these algorithms with duplicates,
+    # as they are very slow.
+    if not arguments.duplicates:
+        algorithms ["knn"] = lambda _: KNeighborsClassifier (
+            n_neighbors = 10,
+            weights     = "distance",
+            metric      = knn_distance,
+        )
+        algorithms ["bagging-knn"] = lambda _: BaggingClassifier (
+            KNeighborsClassifier (
+                n_neighbors = 10,
+                weights     = "distance",
+                metric      = knn_distance
+            ),
+            max_samples  = 0.5,
+            max_features = 1,
+            n_estimators = 10,
+        )
+
+    algorithms ["naive-bayes"] = lambda _: GaussianNB ()
+
+    algorithms ["svm"] = lambda _: SVC ()
+
+    algorithms ["ada boost"] = lambda _: AdaBoostClassifier()
+
+    algorithms ["linear-svm"] = lambda _: LinearSVC ()
+
+    algorithms ["decision-tree"] = lambda _: tree.DecisionTreeClassifier ()
+
+    algorithms ["random-forest"] = lambda _: RandomForestClassifier (
+        n_estimators = 20,
+        max_features = None,
+    )
+
+    algorithms ["neural-network"] = lambda _: MLPClassifier (
+        solver = "lbfgs",
+    )
 
     techniques = {}
 
@@ -276,6 +300,7 @@ if __name__ == "__main__":
 
     logging.info (f"Analyzing known data.")
     known = {}
+    distance = arguments.distance
     with tqdm (total = size) as counter:
         for examination, models in data.items ():
             known [examination] = {}
@@ -306,15 +331,22 @@ if __name__ == "__main__":
                                 subresults [tool] ["memory"] += entry ["Memory"]
                             counter.update (1)
                     s = sorted (subsubresults.items (), key = lambda e: (e [1] ["time"], e [1] ["memory"]))
+                    # Select only the tools that are within a distance from the best:
                     known_i ["sorted"] = [ { "tool": x [0], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
-                    rank = 1
-                    for x in known_i ["sorted"]:
-                        tool  = x ["tool"]
-                        entry = tools [tool] [tool_year [tool]]
-                        entry ["Rank"] = rank
-                        rank += 1
                 s = sorted (subresults.items (), key = lambda e: (- e [1] ["count"], e [1] ["time"], e [1] ["memory"]))
                 known_m ["sorted"] = [ { "tool": x [0], "count": x [1] ["count"], "time": x [1] ["time"], "memory": x [1] ["memory"] } for x in s]
+                # Select all tools that reach both the maximum count and the expected distance from the best:
+                if known_m ["sorted"]:
+                    best = known_m ["sorted"] [0]
+                    for x in known_m ["sorted"]:
+                        if x ["count"] == best ["count"]:
+                            for instance, tools in instances.items ():
+                                tool  = x ["tool"]
+                                if  tool in tools \
+                                and tool_year [tool] in tools [tool] \
+                                and (distance is None or x ["time"] / best ["time"] <= (1+distance)):
+                                    entry = tools [tool] [tool_year [tool]]
+                                    entry ["Selected"] = True
     with open ("known.json", "w") as output:
         json.dump (known, output)
 
@@ -340,8 +372,8 @@ if __name__ == "__main__":
     with tqdm (total = len (results)) as counter:
         for _, entry in results.items ():
             if  entry ["Year"] == tool_year [entry ["Tool"]] \
-            and "Rank" in entry \
-            and entry ["Rank"] == 1:
+            and "Selected" in entry \
+            and entry ["Selected"]:
                 cp = {}
                 for key, value in entry.items ():
                     if  key != "Id" \
@@ -351,35 +383,32 @@ if __name__ == "__main__":
                     and key != "Memory" \
                     and key != "Clock Time" \
                     and key != "Parameterised" \
-                    and key != "Rank" \
+                    and key != "Selected" \
                     and key != "Surprise" \
                     and key not in techniques:
                         cp [key] = translate (value)
                 learned.append (cp)
             counter.update (1)
-    logging.info (f"Using {len (learned)} entries for learning.")
+    logging.info (f"Select {len (learned)} best entries.")
     # Convert this dict into dataframe:
     df = pandas.DataFrame (learned)
-    # Remove the Tool columns from X.
-    X = df.drop ("Tool", 1)
-    Y = df ["Tool"]
+    # Remove duplicate entries if required:
+    if not arguments.duplicates:
+        df = df.drop_duplicates (keep="first")
+    logging.info (f"Using {df.shape [0]} non duplicate entries for learning.")
     # Compute efficiency for each algorithm:
     algorithms_results = []
     for name, falgorithm in algorithms.items ():
         subresults = []
         logging.info (f"Learning using algorithm: '{name}'.")
         for _ in tqdm (range (arguments.iterations)):
-            n             = X.shape [0]
-            training_size = int (n * 0.75)
-            training_X    = X.sample (training_size)
-            training_Y    = Y [training_X.index]
-            # Remove the training points:
-            tmp_X         = pandas.concat ([X, training_X]).drop_duplicates (keep = False)
-            # Get the test points:
-            test_X        = tmp_X.sample (min (int (n * 0.25), tmp_X.shape [0]))
-            test_Y        = Y [test_X.index]
+            train, test = train_test_split(df)
+            training_X  = train.drop("Tool", 1)
+            training_Y  = train["Tool"]
+            test_X      = test.drop("Tool", 1)
+            test_Y      = test["Tool"]
             # Apply algorithm:
-            algorithm = falgorithm (True)
+            algorithm   = falgorithm (True)
             algorithm.fit (training_X, training_Y)
             subresults.append (algorithm.score (test_X, test_Y))
         algorithms_results.append ({
@@ -389,8 +418,15 @@ if __name__ == "__main__":
             "mean"     : statistics.mean (subresults),
             "median"   : statistics.median (subresults),
         })
+        logging.info (f"Algorithm: {name}")
+        logging.info (f"  Min     : {min                (subresults)}")
+        logging.info (f"  Max     : {max                (subresults)}")
+        logging.info (f"  Mean    : {statistics.mean    (subresults)}")
+        logging.info (f"  Median  : {statistics.median  (subresults)}")
+        logging.info (f"  Stdev   : {statistics.stdev   (subresults)}")
+        logging.info (f"  Variance: {statistics.variance(subresults)}")
         algorithm = falgorithm (True)
-        algorithm.fit (X, Y)
+        algorithm.fit (df.drop("Tool", 1), df["Tool"])
         with open (f"learned.{name}.p", "wb") as output:
             pickle.dump (algorithm, output)
     with open ("learned.json", "w") as output:
