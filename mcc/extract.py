@@ -83,13 +83,19 @@ def value_of (x):
         pass
     return x
 
-def knn_distance (x, y, bound = 2):
+
+def knn_distance(x, y, bound=2):
     # we suppose x and y have the same shape and are numpy array.
-    # FIXME: we should only reduce the distance to the bound when values
-    # are not -1, 0 or 1, that encode the booleans.
-    diff = abs (x - y)
-    diff [diff > bound] = bound
-    return diff.sum ()
+    # we create a mask for each vector. Value are true when it isn't a boolean
+    # "*" operator is an "and"
+    # we use "+" as the "or" between the two mask and then juste change
+    # the value where the mask is True.
+    x_mask = (x != 0) * (x != 1) * (x != -1)
+    y_mask = (y != 0) * (y != 1) * (y != -1)
+    diff = abs(x - y)
+    diff[x_mask + y_mask] = bound
+    return diff.sum()
+
 
 if __name__ == "__main__":
 
