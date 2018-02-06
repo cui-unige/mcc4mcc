@@ -1,5 +1,11 @@
 #! /usr/bin/env python3
 
+"""
+Extract data from the Model Checking Contest results,
+generate exact choice algorithms,
+and learn from data for approximate algorithm.
+"""
+
 import argparse
 import csv
 import json
@@ -19,7 +25,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 
-CHARACTERISTICS = [
+CHARACTERISTIC_KEYS = [
     "Id",
     "Type",
     "Fixed size",
@@ -48,7 +54,7 @@ CHARACTERISTICS = [
     "Submitter",
     "Year",
 ]
-RESULTS = [
+RESULT_KEYS = [
     "Year",
     "Tool",
     "Instance",
@@ -67,106 +73,133 @@ RESULTS = [
 ]
 
 
-def value_of(x):
-    if x in ["True", "Yes", "OK"]:
+def translate(what):
+    """Translate values into numbers for machine learning algorithms."""
+    if what is None:
+        return 0
+    if isinstance(what, (bool, str)):
+        if what not in TRANSLATION:
+            TRANSLATION[what] = translate.NEXT_ID + 1
+            translate.NEXT_ID += 1
+        return TRANSLATION[what]
+    else:
+        return what
+translate.NEXT_ID = 10
+
+
+def translate_back(what):
+    """Translate numbers into values from machine learning algorithms."""
+    for key, value in LEARNED["translation"].items():
+        if value == what:
+            return key
+    return None
+
+
+def value_of(what):
+    """Convert a string, such as True, Yes, ... to its real value."""
+    if what in ["TRUE", "True", "Yes", "OK"]:
         return True
-    if x in ["False", "None"]:
+    if what in ["FALSE", "False", "None"]:
         return False
-    if x == "Unknown":
+    if what == "Unknown":
         return None
     try:
-        return int(x)
+        return int(what)
     except ValueError:
         pass
     try:
-        return float(x)
+        return float(what)
     except ValueError:
         pass
-    return x
+    return what
 
 
-def knn_distance(x, y, bound=2):
+def knn_distance(lhs, rhs, bound=2):
+    """
+    Fix the distance for knn, by taking into account that numbers greater than 1
+    represent enumerations.
+    """
     # we suppose x and y have the same shape and are numpy array.
     # we create a mask for each vector. Values are true when it's
     # between [-1,+1]. The "*" operator is an "and"
     # We "and" the two mask and  change the values where the mask is True.
-    x_mask = (x >= -1) * (x <= 1)
-    y_mask = (y >= -1) * (y <= 1)
-    diff = abs(x - y)
-    diff[~(x_mask * y_mask)] = bound
+    lhs_mask = (lhs >= -1) * (lhs <= 1)
+    rhs_mask = (rhs >= -1) * (rhs <= 1)
+    diff = abs(lhs - rhs)
+    diff[~(lhs_mask * rhs_mask)] = bound
     return diff.sum()
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(
+    PARSER = argparse.ArgumentParser(
         description="Data extractor for the model checker collection"
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--results",
         help="results of the model checking contest",
         type=str,
         dest="results",
         default=os.getcwd() + "/results.csv",
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--characteristics",
         help="model characteristics from the Petri net repository",
         type=str,
         dest="characteristics",
         default=os.getcwd() + "/characteristics.csv",
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--known",
         help="data known from models",
         type=str,
         dest="known",
         default=os.getcwd() + "/known.json",
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--learned",
         help="data learned from models",
         type=str,
         dest="learned",
         default=os.getcwd() + "/learned.json",
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--iterations",
         help="Number of iterations",
         type=int,
         dest="iterations",
         default=10,
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--distance",
         help="Allowed distance from the best tool (in percent)",
         type=float,
         dest="distance",
     )
-    parser.add_argument(
+    PARSER.add_argument(
         "--duplicates",
         help="Allow duplicate entries",
         type=bool,
         dest="duplicates",
         default=False,
     )
-    arguments = parser.parse_args()
+    ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
-    algorithms = {}
+    ALGORITHMS = {}
 
     # Do not include these algorithms with duplicates,
     # as they are very slow.
-    if not arguments.duplicates:
-        algorithms["knn"] = lambda _: KNeighborsClassifier(
+    if not ARGUMENTS.duplicates:
+        ALGORITHMS["knn"] = lambda _: KNeighborsClassifier(
             n_neighbors=10,
             weights="distance",
             metric=knn_distance,
         )
-        algorithms["bagging-knn"] = lambda _: BaggingClassifier(
+        ALGORITHMS["bagging-knn"] = lambda _: BaggingClassifier(
             KNeighborsClassifier(
                 n_neighbors=10,
                 weights="distance",
@@ -177,37 +210,37 @@ if __name__ == "__main__":
             n_estimators=10,
         )
 
-    algorithms["naive-bayes"] = lambda _: GaussianNB()
+    ALGORITHMS["naive-bayes"] = lambda _: GaussianNB()
 
-    algorithms["svm"] = lambda _: SVC()
+    ALGORITHMS["svm"] = lambda _: SVC()
 
-    algorithms["ada boost"] = lambda _: AdaBoostClassifier()
+    ALGORITHMS["ada boost"] = lambda _: AdaBoostClassifier()
 
-    algorithms["linear-svm"] = lambda _: LinearSVC()
+    ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
-    algorithms["decision-tree"] = lambda _: tree.DecisionTreeClassifier()
+    ALGORITHMS["decision-tree"] = lambda _: tree.DecisionTreeClassifier()
 
-    algorithms["random-forest"] = lambda _: RandomForestClassifier(
+    ALGORITHMS["random-forest"] = lambda _: RandomForestClassifier(
         n_estimators=20,
         max_features=None,
     )
 
-    algorithms["neural-network"] = lambda _: MLPClassifier(
+    ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
         solver="lbfgs",
     )
 
-    techniques = {}
+    TECHNIQUES = {}
+    CHARACTERISTICS = {}
 
-    characteristics = {}
     logging.info(
-        f"Reading model characteristics from '{arguments.characteristics}'.")
-    with tqdm(total=sum(1 for line in open(arguments.characteristics)) - 1) as counter:
-        with open(arguments.characteristics) as data:
+        f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
+    with tqdm(total=sum(1 for line in open(ARGUMENTS.characteristics)) - 1) as counter:
+        with open(ARGUMENTS.characteristics) as data:
             data.readline()  # skip the title line
-            reader = csv.reader(data)
-            for row in reader:
+            READER = csv.reader(data)
+            for row in READER:
                 entry = {}
-                for i, characteristic in enumerate(CHARACTERISTICS):
+                for i, characteristic in enumerate(CHARACTERISTIC_KEYS):
                     entry[characteristic] = value_of(row[i])
                 entry["Place/Transition"] = True if re.search(
                     "PT", entry["Type"]) else False
@@ -218,28 +251,26 @@ if __name__ == "__main__":
                 del entry["Origin"]
                 del entry["Submitter"]
                 del entry["Year"]
-                characteristics[entry["Id"]] = entry
+                CHARACTERISTICS[entry["Id"]] = entry
                 counter.update(1)
 
-    results = {}
-    logging.info(f"Reading mcc results from '{arguments.results}'.")
-    with tqdm(total=sum(1 for line in open(arguments.results)) - 1) as counter:
-        with open(arguments.results) as data:
+    RESULTS = {}
+    logging.info(f"Reading mcc results from '{ARGUMENTS.results}'.")
+    with tqdm(total=sum(1 for line in open(ARGUMENTS.results)) - 1) as counter:
+        with open(ARGUMENTS.results) as data:
             data.readline()  # skip the title line
-            reader = csv.reader(data)
-            for row in reader:
+            READER = csv.reader(data)
+            for row in READER:
                 entry = {}
-                for i, result in enumerate(RESULTS):
+                for i, result in enumerate(RESULT_KEYS):
                     entry[result] = value_of(row[i])
                 if entry["Time OK"] \
-                        and entry["Memory OK"] \
-                        and entry["Status"] == "normal" \
-                        and entry["Results"] != "DNC" \
-                        and entry["Results"] != "DNF" \
-                        and entry["Results"] != "CC":
-                    results[entry["Id"]] = entry
+                and entry["Memory OK"] \
+                and entry["Status"] == "normal" \
+                and entry["Results"] not in ["DNC", "DNF", "CC"]:
+                    RESULTS[entry["Id"]] = entry
                     for technique in re.findall(r"([A-Z_]+)", entry["Techniques"]):
-                        techniques[technique] = True
+                        TECHNIQUES[technique] = True
                         entry[technique] = True
                     entry["Surprise"] = True if re.search(
                         r"^S_", entry["Instance"]) else False
@@ -252,8 +283,8 @@ if __name__ == "__main__":
                         entry["Model Id"] = entry["Instance"]
                     else:
                         entry["Model Id"] = split.group(1)
-                    if entry["Model Id"] in characteristics:
-                        model = characteristics[entry["Model Id"]]
+                    if entry["Model Id"] in CHARACTERISTICS:
+                        model = CHARACTERISTICS[entry["Model Id"]]
                         for key in model.keys():
                             if key != "Id":
                                 entry[key] = model[key]
@@ -268,22 +299,22 @@ if __name__ == "__main__":
                 counter.update(1)
 
     logging.info(f"Setting all techniques to Boolean values.")
-    with tqdm(total=len(results)) as counter:
-        for key, entry in results.items():
-            for technique in techniques:
+    with tqdm(total=len(RESULTS)) as counter:
+        for key, entry in RESULTS.items():
+            for technique in TECHNIQUES:
                 if technique not in entry:
                     entry[technique] = False
             counter.update(1)
 
     logging.info(f"Sorting data.")
-    size = len(results)
-    data = {}
-    tool_year = {}
-    with tqdm(total=len(results)) as counter:
-        for _, entry in results.items():
-            if entry["Examination"] not in data:
-                data[entry["Examination"]] = {}
-            examination = data[entry["Examination"]]
+    SIZE = len(RESULTS)
+    DATA = {}
+    TOOL_YEAR = {}
+    with tqdm(total=len(RESULTS)) as counter:
+        for _, entry in RESULTS.items():
+            if entry["Examination"] not in DATA:
+                DATA[entry["Examination"]] = {}
+            examination = DATA[entry["Examination"]]
             if entry["Model Id"] not in examination:
                 examination[entry["Model Id"]] = {}
             model = examination[entry["Model Id"]]
@@ -293,12 +324,12 @@ if __name__ == "__main__":
             if entry["Tool"] not in instance:
                 instance[entry["Tool"]] = {}
             tool = instance[entry["Tool"]]
-            if entry["Tool"] not in tool_year:
-                tool_year[entry["Tool"]] = 0
-            if entry["Year"] > tool_year[entry["Tool"]]:
-                tool_year[entry["Tool"]] = entry["Year"]
+            if entry["Tool"] not in TOOL_YEAR:
+                TOOL_YEAR[entry["Tool"]] = 0
+            if entry["Year"] > TOOL_YEAR[entry["Tool"]]:
+                TOOL_YEAR[entry["Tool"]] = entry["Year"]
             if entry["Year"] in tool:
-                size -= 1
+                SIZE -= 1
                 if entry["Clock Time"] < tool[entry["Year"]]["Clock Time"]:
                     tool[entry["Year"]] = entry
             else:
@@ -306,12 +337,12 @@ if __name__ == "__main__":
             counter.update(1)
 
     logging.info(f"Analyzing known data.")
-    known = {}
-    distance = arguments.distance
-    with tqdm(total=size) as counter:
-        for examination, models in data.items():
-            known[examination] = {}
-            known_e = known[examination]
+    KNOWN = {}
+    DISTANCE = ARGUMENTS.distance
+    with tqdm(total=SIZE) as counter:
+        for examination, models in DATA.items():
+            KNOWN[examination] = {}
+            known_e = KNOWN[examination]
             for model, instances in models.items():
                 known_e[model] = {}
                 known_m = known_e[model]
@@ -328,7 +359,7 @@ if __name__ == "__main__":
                                 "memory": 0,
                             }
                         for year, entry in years.items():
-                            if year == tool_year[tool]:
+                            if year == TOOL_YEAR[tool]:
                                 subsubresults[tool] = {
                                     "time": entry["Clock Time"],
                                     "memory": entry["Memory"],
@@ -346,7 +377,8 @@ if __name__ == "__main__":
                 ), key=lambda e: (- e[1]["count"], e[1]["time"], e[1]["memory"]))
                 known_m["sorted"] = [{"tool": x[0], "count": x[1]["count"],
                                       "time": x[1]["time"], "memory": x[1]["memory"]} for x in s]
-                # Select all tools that reach both the maximum count and the expected distance from the best:
+                # Select all tools that reach both the maximum count and the expected distance
+                # from the best:
                 if known_m["sorted"]:
                     best = known_m["sorted"][0]
                     for x in known_m["sorted"]:
@@ -354,67 +386,48 @@ if __name__ == "__main__":
                             for instance, tools in instances.items():
                                 tool = x["tool"]
                                 if tool in tools \
-                                        and tool_year[tool] in tools[tool] \
-                                        and (distance is None or x["time"] / best["time"] <= (1+distance)):
-                                    entry = tools[tool][tool_year[tool]]
+                                and TOOL_YEAR[tool] in tools[tool] \
+                                and (DISTANCE is None or x["time"] / best["time"] <= (1+DISTANCE)):
+                                    entry = tools[tool][TOOL_YEAR[tool]]
                                     entry["Selected"] = True
     with open("known.json", "w") as output:
-        json.dump(known, output)
+        json.dump(KNOWN, output)
 
     logging.info(f"Analyzing learned data.")
-    learned = []
-    next_id = 10
-    translation = {
+    LEARNED = []
+    TRANSLATION = {
         False: -1,
         None: 0,
         True: 1,
     }
 
-    def translate(x):
-        global next_id
-        if x is None:
-            return 0
-        if isinstance(x, (bool, str)):
-            if x not in translation:
-                translation[x] = next_id + 1
-                next_id += 1
-            return translation[x]
-        else:
-            return x
-    with tqdm(total=len(results)) as counter:
-        for _, entry in results.items():
-            if entry["Year"] == tool_year[entry["Tool"]] \
-                    and "Selected" in entry \
-                    and entry["Selected"]:
+    with tqdm(total=len(RESULTS)) as counter:
+        for _, entry in RESULTS.items():
+            if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+            and "Selected" in entry \
+            and entry["Selected"]:
                 cp = {}
                 for key, value in entry.items():
-                    if key != "Id" \
-                            and key != "Model Id" \
-                            and key != "Year" \
-                            and key != "Instance" \
-                            and key != "Memory" \
-                            and key != "Clock Time" \
-                            and key != "Parameterised" \
-                            and key != "Selected" \
-                            and key != "Surprise" \
-                            and key not in techniques:
+                    if key not in ["Id", "Model Id", "Year", "Instance", "Memory", \
+                                    "Clock Time", "Parameterised", "Selected", "Surprise"] \
+                    and key not in TECHNIQUES:
                         cp[key] = translate(value)
-                learned.append(cp)
+                LEARNED.append(cp)
             counter.update(1)
-    logging.info(f"Select {len (learned)} best entries.")
+    logging.info(f"Select {len (LEARNED)} best entries.")
     # Convert this dict into dataframe:
-    df = pandas.DataFrame(learned)
+    DF = pandas.DataFrame(LEARNED)
     # Remove duplicate entries if required:
-    if not arguments.duplicates:
-        df = df.drop_duplicates(keep="first")
-    logging.info(f"Using {df.shape [0]} non duplicate entries for learning.")
+    if not ARGUMENTS.duplicates:
+        DF = DF.drop_duplicates(keep="first")
+    logging.info(f"Using {DF.shape [0]} non duplicate entries for learning.")
     # Compute efficiency for each algorithm:
-    algorithms_results = []
-    for name, falgorithm in algorithms.items():
+    ALGORITHMS_RESULTS = []
+    for name, falgorithm in ALGORITHMS.items():
         subresults = []
         logging.info(f"Learning using algorithm: '{name}'.")
-        for _ in tqdm(range(arguments.iterations)):
-            train, test = train_test_split(df)
+        for _ in tqdm(range(ARGUMENTS.iterations)):
+            train, test = train_test_split(DF)
             training_X = train.drop("Tool", 1)
             training_Y = train["Tool"]
             test_X = test.drop("Tool", 1)
@@ -423,7 +436,7 @@ if __name__ == "__main__":
             algorithm = falgorithm(True)
             algorithm.fit(training_X, training_Y)
             subresults.append(algorithm.score(test_X, test_Y))
-        algorithms_results.append({
+        ALGORITHMS_RESULTS.append({
             "algorithm": name,
             "min": min(subresults),
             "max": max(subresults),
@@ -438,11 +451,11 @@ if __name__ == "__main__":
         logging.info(f"  Stdev   : {statistics.stdev   (subresults)}")
         logging.info(f"  Variance: {statistics.variance(subresults)}")
         algorithm = falgorithm(True)
-        algorithm.fit(df.drop("Tool", 1), df["Tool"])
+        algorithm.fit(DF.drop("Tool", 1), DF["Tool"])
         with open(f"learned.{name}.p", "wb") as output:
             pickle.dump(algorithm, output)
     with open("learned.json", "w") as output:
         json.dump({
-            "algorithms": algorithms_results,
-            "translation": translation,
+            "algorithms": ALGORITHMS_RESULTS,
+            "translation": TRANSLATION,
         }, output)
