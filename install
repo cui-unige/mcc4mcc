@@ -141,10 +141,9 @@ ssh \
    DOCKER_PASSWORD=${docker_password} \
    bash -s" <<"EOS"
 set -e
-echo "${DOCKER_PASSWORD}" \
-  | docker login \
+docker login \
   --username="${DOCKER_USERNAME}" \
-  --password-stdin
+  --password="${DOCKER_PASSWORD}"
 for image in $(cat images)
 do
   docker pull ${image}
