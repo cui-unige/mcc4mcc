@@ -1,6 +1,10 @@
 sudo: required
 services:
   - docker
+addons:
+  apt:
+    packages:
+    - shellcheck
 language: python
 python:
   - "3.6"
@@ -12,7 +16,8 @@ script:
   - pycodestyle mcc/*.py
   - pylint mcc/*.py
   - ./build
-addons:
-  apt:
-    packages:
-    - shellcheck
+notifications:
+  email:
+    - alban.linard@gmail.com
+  on_success: change
+  on_failure: change
