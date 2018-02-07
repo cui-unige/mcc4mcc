@@ -84,14 +84,16 @@ def translate(what):
         return TRANSLATION[what]
     else:
         return what
+
+
 translate.NEXT_ID = 10
 
 
 def translate_back(what):
     """Translate numbers into values from machine learning algorithms."""
-    for key, value in LEARNED["translation"].items():
-        if value == what:
-            return key
+    for wkey, wvalue in LEARNED["translation"].items():
+        if wvalue == what:
+            return wkey
     return None
 
 
@@ -116,8 +118,8 @@ def value_of(what):
 
 def knn_distance(lhs, rhs, bound=2):
     """
-    Fix the distance for knn, by taking into account that numbers greater than 1
-    represent enumerations.
+    Fix the distance for knn, by taking into account that numbers greater
+    than 1 represent enumerations.
     """
     # we suppose x and y have the same shape and are numpy array.
     # we create a mask for each vector. Values are true when it's
@@ -234,7 +236,9 @@ if __name__ == "__main__":
 
     logging.info(
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
-    with tqdm(total=sum(1 for line in open(ARGUMENTS.characteristics)) - 1) as counter:
+    with tqdm(total=sum(
+        1 for line in open(ARGUMENTS.characteristics)) - 1
+             ) as counter:
         with open(ARGUMENTS.characteristics) as data:
             data.readline()  # skip the title line
             READER = csv.reader(data)
@@ -265,11 +269,14 @@ if __name__ == "__main__":
                 for i, result in enumerate(RESULT_KEYS):
                     entry[result] = value_of(row[i])
                 if entry["Time OK"] \
-                and entry["Memory OK"] \
-                and entry["Status"] == "normal" \
-                and entry["Results"] not in ["DNC", "DNF", "CC"]:
+                        and entry["Memory OK"] \
+                        and entry["Status"] == "normal" \
+                        and entry["Results"] not in ["DNC", "DNF", "CC"]:
                     RESULTS[entry["Id"]] = entry
-                    for technique in re.findall(r"([A-Z_]+)", entry["Techniques"]):
+                    for technique in re.findall(
+                            r"([A-Z_]+)",
+                            entry["Techniques"]
+                    ):
                         TECHNIQUES[technique] = True
                         entry[technique] = True
                     entry["Surprise"] = True if re.search(
@@ -370,24 +377,38 @@ if __name__ == "__main__":
                             counter.update(1)
                     s = sorted(subsubresults.items(), key=lambda e: (
                         e[1]["time"], e[1]["memory"]))
-                    # Select only the tools that are within a distance from the best:
+                    # Select only the tools that are within a distance
+                    # from the best:
                     known_i["sorted"] = [
-                        {"tool": x[0], "time": x[1]["time"], "memory": x[1]["memory"]} for x in s]
-                s = sorted(subresults.items(
-                ), key=lambda e: (- e[1]["count"], e[1]["time"], e[1]["memory"]))
-                known_m["sorted"] = [{"tool": x[0], "count": x[1]["count"],
-                                      "time": x[1]["time"], "memory": x[1]["memory"]} for x in s]
-                # Select all tools that reach both the maximum count and the expected distance
-                # from the best:
+                        {"tool": x[0],
+                         "time": x[1]["time"],
+                         "memory": x[1]["memory"]} for x in s]
+                s = sorted(
+                    subresults.items(),
+                    key=lambda e: (
+                        -e[1]["count"],
+                        e[1]["time"],
+                        e[1]["memory"]
+                    )
+                )
+                known_m["sorted"] = [
+                    {"tool": x[0],
+                     "count": x[1]["count"],
+                     "time": x[1]["time"],
+                     "memory": x[1]["memory"]} for x in s]
+                # Select all tools that reach both the maximum count and
+                # the expected distance from the best:
                 if known_m["sorted"]:
                     best = known_m["sorted"][0]
                     for x in known_m["sorted"]:
                         if x["count"] == best["count"]:
                             for instance, tools in instances.items():
                                 tool = x["tool"]
+                                ratio = x["time"] / best["time"]
                                 if tool in tools \
-                                and TOOL_YEAR[tool] in tools[tool] \
-                                and (DISTANCE is None or x["time"] / best["time"] <= (1+DISTANCE)):
+                                        and TOOL_YEAR[tool] in tools[tool] \
+                                        and (DISTANCE is None
+                                             or ratio <= (1+DISTANCE)):
                                     entry = tools[tool][TOOL_YEAR[tool]]
                                     entry["Selected"] = True
     with open("known.json", "w") as output:
@@ -404,13 +425,15 @@ if __name__ == "__main__":
     with tqdm(total=len(RESULTS)) as counter:
         for _, entry in RESULTS.items():
             if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
-            and "Selected" in entry \
-            and entry["Selected"]:
+                    and "Selected" in entry \
+                    and entry["Selected"]:
                 cp = {}
                 for key, value in entry.items():
-                    if key not in ["Id", "Model Id", "Year", "Instance", "Memory", \
-                                    "Clock Time", "Parameterised", "Selected", "Surprise"] \
-                    and key not in TECHNIQUES:
+                    if key not in [
+                            "Id", "Model Id", "Instance", "Year",
+                            "Memory", "Clock Time",
+                            "Parameterised", "Selected", "Surprise"] \
+                            and key not in TECHNIQUES:
                         cp[key] = translate(value)
                 LEARNED.append(cp)
             counter.update(1)

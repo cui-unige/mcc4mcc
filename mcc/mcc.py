@@ -22,7 +22,6 @@ if __name__ == "__main__":
 
     import extract
 
-
     def read_boolean(filename):
         """Read a Boolean file from the MCC."""
         with open(filename, "r") as boolfile:
@@ -102,8 +101,11 @@ if __name__ == "__main__":
         LEARNED = json.load(i)
 
     if ARGUMENTS.algorithm is None:
-        ALGORITHM = sorted(LEARNED["algorithms"], key=lambda e: e["mean"], reverse=True)[
-            0]["algorithm"]
+        ALGORITHM = sorted(
+            LEARNED["algorithms"],
+            key=lambda e: e["mean"],
+            reverse=True
+        )[0]["algorithm"]
     else:
         ALGORITHM = ARGUMENTS.algorithm
     logging.info(f"Using machine learning algorithm '{ALGORITHM}'.")
@@ -146,7 +148,7 @@ if __name__ == "__main__":
     logging.info(f"Using '{MODEL}' as model name.")
 
     EXAMINATION = ARGUMENTS.examination
-    if ARGUMENTS.tool != None:
+    if ARGUMENTS.tool is not None:
         logging.info(f"Using only the tool '{ARGUMENTS.tool}'.")
         TOOLS = [ARGUMENTS.tool]
     elif EXAMINATION in KNOWN \
