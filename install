@@ -1,7 +1,11 @@
 #! /usr/bin/env bash
 
-set -x
 set -e
+
+read -r    -p "Docker username? " docker_username
+read -r -s -p "Docker password? " docker_password
+
+temporary=$(mktemp -d)
 
 # Clean:
 VBoxManage controlvm "mcc4mcc" \
@@ -43,7 +47,9 @@ ssh \
   -p 2222 \
   root@localhost \
   'bash -s' <<'EOS'
+set -e
 apt-get update  --yes
+apt-get upgrade --yes
 apt-get install --yes \
   apt-transport-https \
   ca-certificates \
@@ -61,6 +67,7 @@ apt-get update  --yes
 apt-get install --yes \
   docker-ce \
   python3-pip
+adduser mcc docker
 pip3 install numpy
 pip3 install scikit-learn
 pip3 install xmltodict
@@ -92,4 +99,89 @@ scp \
   mcc@localhost:BenchKit/
 
 # Install docker images:
-# * set docker to use all resources
+for tool in lola \
+            ltsmin \
+            marcie \
+            tina \
+            sift \
+            tedd \
+            tapaal
+do
+  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
+  then
+    echo "${tool}" >> "${temporary}/images"
+    # sem --jobs -4 "cd ${tool}; \
+    ( cd "${tool}"
+      docker build \
+             --tag="mccpetrinets/${tool}" \
+             --force-rm \
+             --squash \
+             .
+      docker push "mccpetrinets/${tool}"
+    ) || exit 1
+  fi
+done
+# sem --wait
+scp \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  "${temporary}/images" \
+  mcc@localhost:
+set -x
+ssh \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -p 2222 \
+  mcc@localhost \
+  "DOCKER_USERNAME=${docker_username} \
+   DOCKER_PASSWORD=${docker_password} \
+   bash -s" <<"EOS"
+set -e
+echo "${DOCKER_PASSWORD}" \
+  | docker login \
+  --username="${DOCKER_USERNAME}" \
+  --password-stdin
+for image in $(cat images)
+do
+  docker pull ${image}
+done
+EOS
+set +x
+
+# Stop:
+ssh \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -p 2222 \
+  root@localhost \
+  'bash -s' <<"EOS"
+set -e
+apt-get install --yes \
+  zerofree
+apt-get autoremove --yes
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+sync
+# mount -n -o remount,ro /dev/sda1 /
+# zerofree /dev/sda1
+EOS
+VBoxManage controlvm "mcc4mcc" \
+  poweroff
+rm -f "mcc4mcc.vdi"
+rm -f "mcc4mcc-2018.vmdk"
+VBoxManage clonemedium \
+  --format=VDI \
+  "mcc4mcc.vmdk" \
+  "mcc4mcc.vdi"
+VboxManage modifymedium  \
+  --compact \
+  "mcc4mcc.vdi"
+VBoxManage clonemedium \
+  --format=VMDK \
+  "mcc4mcc.vdi" \
+  "mcc4mcc-2018.vmdk"
+rm -f "mcc4mcc.vdi"

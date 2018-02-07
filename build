@@ -7,16 +7,16 @@ docker login \
 # tina is built before, because it is a dependency for tedd and sift
 for tool in tina *
 do
-  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
+  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ] && [ -f "${tool}/disable" ]
   then
-    echo "${tool}" >> "${temporary}/images"
     ( cd "${tool}"
+      echo "Building ${tool}..."
       docker build \
              --tag="mccpetrinets/${tool}" \
              --force-rm \
              --squash \
              .
       docker push "mccpetrinets/${tool}"
-    )
+    ) || exit 1
   fi
 done
