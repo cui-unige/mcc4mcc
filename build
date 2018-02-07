@@ -1,0 +1,22 @@
+#! /usr/bin/env bash
+
+docker login \
+  -u "${DOCKER_USERNAME}" \
+  -p "${DOCKER_PASSWORD}"
+
+# tina is built before, because it is a dependency for tedd and sift
+for tool in tina *
+do
+  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
+  then
+    echo "${tool}" >> "${temporary}/images"
+    ( cd "${tool}"
+      docker build \
+             --tag="mccpetrinets/${tool}" \
+             --force-rm \
+             --squash \
+             .
+      docker push "mccpetrinets/${tool}"
+    )
+  fi
+done

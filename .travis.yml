@@ -1,0 +1,18 @@
+sudo: required
+services:
+  - docker
+language: python
+python:
+  - "3.6"
+  - "nightly"
+install:
+  - pip install -r mcc/requirements.txt
+script:
+  - shellcheck build install
+  - pycodestyle mcc/*.py
+  - pylint mcc/*.py
+  - ./build
+addons:
+  apt:
+    packages:
+    - shellcheck
