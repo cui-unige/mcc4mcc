@@ -4,7 +4,7 @@ services:
 language: python
 python:
   - "3.6"
-  - "nightly"
+  # - "nightly"
 install:
   - pip install -r mcc/requirements.txt
 script:
