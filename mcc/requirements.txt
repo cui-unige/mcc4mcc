@@ -3,3 +3,5 @@ xmltodict
 pandas
 tqdm
 scikit_learn
+pycodestyle
+pylint
