@@ -116,3 +116,6 @@ mcc/learned.json
 
 # Mac OS:
 .DS_Store
+
+# Models:
+models/
