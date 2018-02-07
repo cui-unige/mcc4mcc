@@ -130,6 +130,7 @@ scp \
   "${temporary}/images" \
   mcc@localhost:
 set -x
+# shellcheck disable=SC2029
 ssh \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
