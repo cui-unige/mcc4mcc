@@ -15,7 +15,6 @@ script:
   - shellcheck build install
   - pycodestyle mcc/*.py
   - pylint mcc/*.py
-  - ./build
 notifications:
   email:
     - alban.linard@gmail.com
