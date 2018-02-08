@@ -22,6 +22,10 @@ if __name__ == "__main__":
 
     import extract
 
+    def knn_distance(lhs, rhs, bound=2):
+        """The knn distance function, required to load knn algorithms."""
+        return extract.knn_distance(lhs, rhs, bound)
+
     def read_boolean(filename):
         """Read a Boolean file from the MCC."""
         with open(filename, "r") as boolfile:
@@ -64,6 +68,13 @@ if __name__ == "__main__":
         type=str,
         dest="tool",
     )
+    PARSER.add_argument(
+        "--evaluate",
+        help="compare the known and learned tool",
+        type=bool,
+        dest="evaluate",
+        default=True,
+    )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -99,6 +110,7 @@ if __name__ == "__main__":
         f"Reading learned information in '{ARGUMENTS.data}/learned.json'.")
     with open(f"{ARGUMENTS.data}/learned.json", "r") as i:
         LEARNED = json.load(i)
+        extract.translate.ITEMS = LEARNED["translation"]
 
     if ARGUMENTS.algorithm is None:
         ALGORITHM = sorted(
@@ -114,26 +126,26 @@ if __name__ == "__main__":
         if os.path.isfile(ARGUMENTS.input):
             DIRECTORY = tempfile.TemporaryDirectory()
             logging.info(
-                f"Extracting archive '{ARGUMENTS.input}' \
-                to temporary directory '{DIRECTORY}'.")
+                f"Extracting archive '{ARGUMENTS.input}' "
+                f"to temporary directory '{DIRECTORY}'.")
             with tarfile.open(name=ARGUMENTS.input) as tar:
                 tar.extractall(path=DIRECTORY)
             ARGUMENTS.input = DIRECTORY
         elif os.path.isdir(ARGUMENTS.input):
             if os.path.isfile(ARGUMENTS.input + "/model.pnml"):
                 logging.info(
-                    f"Using directory '{ARGUMENTS.input}' for input, \
-                    as it contains a 'model.pnml' file.")
+                    f"Using directory '{ARGUMENTS.input}' for input, "
+                    f"as it contains a 'model.pnml' file.")
                 break
             else:
                 logging.error(
-                    f"Cannot use directory '{ARGUMENTS.input}' for input, \
-                    as it does not contain a 'model.pnml' file.")
+                    f"Cannot use directory '{ARGUMENTS.input}' for input, "
+                    f"as it does not contain a 'model.pnml' file.")
                 sys.exit(1)
         else:
             logging.error(
-                f"Cannot use directory '{ARGUMENTS.input}' for input, \
-                as it does not contain a 'model.pnml' file.")
+                f"Cannot use directory '{ARGUMENTS.input}' for input, "
+                f"as it does not contain a 'model.pnml' file.")
             sys.exit(1)
 
     LAST = pathlib.PurePath(ARGUMENTS.input).stem
@@ -150,51 +162,88 @@ if __name__ == "__main__":
     EXAMINATION = ARGUMENTS.examination
     if ARGUMENTS.tool is not None:
         logging.info(f"Using only the tool '{ARGUMENTS.tool}'.")
-        TOOLS = [ARGUMENTS.tool]
-    elif EXAMINATION in KNOWN \
+        USER_TOOLS = [ARGUMENTS.tool]
+    else:
+        USER_TOOLS = None
+    if EXAMINATION in KNOWN \
             and MODEL in KNOWN[EXAMINATION] \
             and INSTANCE in KNOWN[EXAMINATION][MODEL]:
-        TOOLS = KNOWN[EXAMINATION][MODEL][INSTANCE]["sorted"]
+        KNOWN_TOOLS = KNOWN[EXAMINATION][MODEL][INSTANCE]["sorted"]
     elif EXAMINATION in KNOWN \
             and MODEL in KNOWN[EXAMINATION]:
-        TOOLS = KNOWN[EXAMINATION][MODEL]["sorted"]
+        KNOWN_TOOLS = KNOWN[EXAMINATION][MODEL]["sorted"]
     else:
+        KNOWN_TOOLS = None
         logging.warning(
-            f"Cannot find known information for examination '{EXAMINATION}' \
-            on instance '{INSTANCE}' or model '{MODEL}'.")
-        IS_COLORED = read_boolean(f"{ARGUMENTS.input}/iscolored")
-        if IS_COLORED:
-            HAS_PT = read_boolean(f"{ARGUMENTS.input}/equiv_pt")
-        else:
-            HAS_COLORED = read_boolean(f"{ARGUMENTS.input}/equiv_col")
-        with open(f"{ARGUMENTS.input}/GenericPropertiesVerdict.xml", "r") as i:
-            VERDICT = xmltodict.parse(i.read())
-        CHARACTERISTICS = {
-            "Examination": EXAMINATION,
-            "Place/Transition": (not IS_COLORED) or HAS_PT,
-            "Colored": IS_COLORED or HAS_COLORED,
-        }
-        for v in VERDICT["toolspecific"]["verdict"]:
-            if v["@value"] == "true":
-                CHARACTERISTICS[VERDICTS[v["@reference"]]] = True
-            elif v["@value"] == "false":
-                CHARACTERISTICS[VERDICTS[v["@reference"]]] = False
-            else:
-                CHARACTERISTICS[VERDICTS[v["@reference"]]] = None
-        logging.info(f"Model characteristics are: {CHARACTERISTICS}.")
-        with open(f"{ARGUMENTS.data}/learned.{ALGORITHM}.p", "rb") as i:
-            MODEL = pickle.load(i)
-        TEST = {}
-        for key, value in CHARACTERISTICS.items():
-            TEST[key] = extract.translate(value)
-        # http://scikit-learn.org/stable/modules/model_persistence.html
-        PREDICTED = MODEL.predict(pandas.DataFrame([TEST]))
-        # FIXME: i am not sure the result is correct, because there is no check
-        # that the fields of the characteristic have the same name as the
-        # fields that were used during learning.
-        TOOLS = [{"tool": extract.translate_back(PREDICTED[0])}]
+            f"Cannot find known information for examination '{EXAMINATION}' "
+            f"on instance '{INSTANCE}' or model '{MODEL}'.")
 
-    if not TOOLS:
+    LEARNED_TOOLS = None
+    IS_COLORED = read_boolean(f"{ARGUMENTS.input}/iscolored")
+    if IS_COLORED:
+        HAS_PT = read_boolean(f"{ARGUMENTS.input}/equiv_pt")
+    else:
+        HAS_COLORED = read_boolean(f"{ARGUMENTS.input}/equiv_col")
+    with open(f"{ARGUMENTS.input}/GenericPropertiesVerdict.xml", "r") as i:
+        VERDICT = xmltodict.parse(i.read())
+    CHARACTERISTICS = {
+        "Examination": EXAMINATION,
+        "Place/Transition": (not IS_COLORED) or HAS_PT,
+        "Colored": IS_COLORED or HAS_COLORED,
+    }
+    for v in VERDICT["toolspecific"]["verdict"]:
+        if v["@value"] == "true":
+            CHARACTERISTICS[VERDICTS[v["@reference"]]] = True
+        elif v["@value"] == "false":
+            CHARACTERISTICS[VERDICTS[v["@reference"]]] = False
+        else:
+            CHARACTERISTICS[VERDICTS[v["@reference"]]] = None
+    logging.info(f"Model characteristics are: {CHARACTERISTICS}.")
+    with open(f"{ARGUMENTS.data}/learned.{ALGORITHM}.p", "rb") as i:
+        MODEL = pickle.load(i)
+    TEST = {}
+    for key, value in CHARACTERISTICS.items():
+        TEST[key] = extract.translate(value)
+    # http://scikit-learn.org/stable/modules/model_persistence.html
+    PREDICTED = MODEL.predict(pandas.DataFrame([TEST]))
+    # FIXME: i am not sure the result is correct, because there is no check
+    # that the fields of the characteristic have the same name as the
+    # fields that were used during learning.
+    LEARNED_TOOLS = [{"tool": extract.translate_back(PREDICTED[0])}]
+
+    if ARGUMENTS.evaluate:
+        logging.info(f"Known tools are: {KNOWN_TOOLS}.")
+        logging.info(f"Learned tool is: {LEARNED_TOOLS[0]}.")
+        if KNOWN_TOOLS is not None and LEARNED_TOOLS is not None:
+            LEARNED = LEARNED_TOOLS[0]
+            BEST = KNOWN_TOOLS[0]
+            DISTANCE = None
+            for entry in KNOWN_TOOLS:
+                if entry["tool"] == LEARNED["tool"]:
+                    learned_tool = entry["tool"]
+                    best_tool = BEST["tool"]
+                    DISTANCE = entry["time"] / BEST["time"]
+                    logging.info(f"Learned tool {learned_tool} is {DISTANCE} "
+                                 f"far from the best tool {best_tool}.")
+                    break
+            if DISTANCE is None:
+                logging.info(f"Learned tool does not appear within known.")
+        elif KNOWN_TOOLS is None:
+            logging.warning(f"No known information "
+                            f"for examination '{EXAMINATION}' "
+                            f"on instance '{INSTANCE}' or model '{MODEL}'.")
+        elif LEARNED_TOOLS is None:
+            logging.warning(f"No learned information "
+                            f"for examination '{EXAMINATION}' "
+                            f"on instance '{INSTANCE}' or model '{MODEL}'.")
+
+    if USER_TOOLS is not None:
+        TOOLS = USER_TOOLS
+    if KNOWN_TOOLS is not None:
+        TOOLS = KNOWN_TOOLS
+    elif LEARNED_TOOLS is not None:
+        TOOLS = LEARNED_TOOLS
+    else:
         logging.error(f"DO NOT COMPETE")
         sys.exit(1)
 
@@ -213,7 +262,7 @@ if __name__ == "__main__":
             if key.startswith("BK_"):
                 command.append("--env")
                 command.append(f"{key}={value}")
-        command.append(f"mcc/{tool}")
+        command.append(f"mcc/{tool}".lower())
         logging.info(f"Running {command}.")
         SUCCESS = subprocess.call(command)
         if SUCCESS == 0:

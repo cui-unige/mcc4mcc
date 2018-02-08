@@ -78,20 +78,21 @@ def translate(what):
     if what is None:
         return 0
     if isinstance(what, (bool, str)):
-        if what not in TRANSLATION:
-            TRANSLATION[what] = translate.NEXT_ID + 1
+        if what not in translate.ITEMS:
+            translate.ITEMS[what] = translate.NEXT_ID + 1
             translate.NEXT_ID += 1
-        return TRANSLATION[what]
+        return translate.ITEMS[what]
     else:
         return what
 
 
+translate.ITEMS = {}
 translate.NEXT_ID = 10
 
 
 def translate_back(what):
     """Translate numbers into values from machine learning algorithms."""
-    for wkey, wvalue in LEARNED["translation"].items():
+    for wkey, wvalue in translate.ITEMS.items():
         if wvalue == what:
             return wkey
     return None
@@ -416,7 +417,7 @@ if __name__ == "__main__":
 
     logging.info(f"Analyzing learned data.")
     LEARNED = []
-    TRANSLATION = {
+    translate.ITEMS = {
         False: -1,
         None: 0,
         True: 1,
@@ -480,5 +481,5 @@ if __name__ == "__main__":
     with open("learned.json", "w") as output:
         json.dump({
             "algorithms": ALGORITHMS_RESULTS,
-            "translation": TRANSLATION,
+            "translation": translate.ITEMS,
         }, output)
