@@ -14,6 +14,7 @@ import os
 import re
 import statistics
 import pickle
+from collections import Counter
 import pandas
 from tqdm import tqdm
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -24,6 +25,7 @@ from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
+import numpy as np
 
 CHARACTERISTIC_KEYS = [
     "Id",
@@ -71,6 +73,63 @@ RESULT_KEYS = [
     "Status",
     "Id",
 ]
+
+
+class MyAlgo:
+    """Custom classification algorithm. It can be choice when there is a big
+    majority class. There is fit and score methods like in Scikit."""
+
+    def __init__(self, class_weight='balanced', n_estimators=30):
+        self.binary = RandomForestClassifier(
+            class_weight=class_weight,
+            n_estimators=n_estimators
+        )
+
+        self.multi = RandomForestClassifier(
+            class_weight=class_weight,
+            n_estimators=n_estimators
+        )
+
+        self.majority_class = None
+
+    def fit(self, training_x, training_y):
+        """Training function. It takes a training vector features and a
+        training class vector."""
+        training_x = np.array(training_x)
+        training_y = np.array(training_y)
+        copy_y = training_y.copy()
+        # we find the majority class
+        self.majority_class = Counter(training_y).most_common()[0][0]
+        # create a mask for the binary classification
+        mask = copy_y == self.majority_class
+        # apply the mask
+        copy_y[mask] = self.majority_class
+        copy_y[~mask] = 0
+        # fit the binary classifier
+        self.binary.fit(training_x, copy_y)
+        # get the predictions
+        y_pred = self.binary.predict(training_x)
+        # filter the non majority class
+        mask = y_pred != self.majority_class
+        # fit on it
+        self.multi.fit(training_x[mask], training_y[mask])
+
+    def predict(self, test_x):
+        """Predict function. It predict the class, based on given features
+        vector."""
+        test_x = np.array(test_x)
+        y_pred = self.binary.predict(test_x)
+        mask = y_pred != self.majority_class
+        y_pred[mask] = self.multi.predict(test_x[mask])
+        return y_pred
+
+    def score(self, test_x, test_y):
+        """Score function. It computes the accuracy based on given features
+        vector and class vector"""
+        test_x = np.array(test_x)
+        test_y = np.array(test_y)
+        y_pred = self.predict(test_x)
+        return np.sum(y_pred == test_y) / test_y.shape[0]
 
 
 def translate(what):
@@ -241,6 +300,9 @@ if __name__ == "__main__":
     )
 
     ALGORITHMS["random-forest-regression"] = lambda _: RandomForestRegressor()
+
+    # Custom part
+    ALGORITHMS["custom-algo"] = lambda _: MyAlgo()
 
     TECHNIQUES = {}
     CHARACTERISTICS = {}
