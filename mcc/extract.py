@@ -16,12 +16,12 @@ import statistics
 import pickle
 import pandas
 from tqdm import tqdm
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
-from sklearn import tree
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 
@@ -194,6 +194,7 @@ if __name__ == "__main__":
 
     ALGORITHMS = {}
 
+    # Classificator parts:
     # Do not include these algorithms with duplicates,
     # as they are very slow.
     if not ARGUMENTS.duplicates:
@@ -221,7 +222,7 @@ if __name__ == "__main__":
 
     ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
-    ALGORITHMS["decision-tree"] = lambda _: tree.DecisionTreeClassifier()
+    ALGORITHMS["decision-tree"] = lambda _: DecisionTreeClassifier()
 
     ALGORITHMS["random-forest"] = lambda _: RandomForestClassifier(
         n_estimators=20,
@@ -232,6 +233,15 @@ if __name__ == "__main__":
         solver="lbfgs",
     )
 
+    # Regressor part
+    ALGORITHMS["DecisionTreeRegressor"] = lambda _: DecisionTreeRegressor()
+
+    ALGORITHMS["KNN Regression"] = lambda _: KNeighborsRegressor(
+        weights='distance', n_neighbors=30
+    )
+
+    ALGORITHMS["Random Forest Regressor"] = lambda _: RandomForestRegressor()
+
     TECHNIQUES = {}
     CHARACTERISTICS = {}
 
@@ -239,7 +249,7 @@ if __name__ == "__main__":
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
     with tqdm(total=sum(
         1 for line in open(ARGUMENTS.characteristics)) - 1
-             ) as counter:
+            ) as counter:
         with open(ARGUMENTS.characteristics) as data:
             data.readline()  # skip the title line
             READER = csv.reader(data)
