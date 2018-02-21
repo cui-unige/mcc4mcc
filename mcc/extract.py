@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
     ALGORITHMS["svm"] = lambda _: SVC()
 
-    ALGORITHMS["ada boost"] = lambda _: AdaBoostClassifier()
+    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
 
     ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
@@ -233,14 +233,17 @@ if __name__ == "__main__":
         solver="lbfgs",
     )
 
-    # Regressor part
-    ALGORITHMS["DecisionTreeRegressor"] = lambda _: DecisionTreeRegressor()
+    # Custom data
+    ALGORITHMS["my-algo"] = lambda _: MyAlgo()
 
-    ALGORITHMS["KNN Regression"] = lambda _: KNeighborsRegressor(
+    # Regressor part
+    ALGORITHMS["decision-tree-regression"] = lambda _: DecisionTreeRegressor()
+
+    ALGORITHMS["knn-regression"] = lambda _: KNeighborsRegressor(
         weights='distance', n_neighbors=30
     )
 
-    ALGORITHMS["Random Forest Regressor"] = lambda _: RandomForestRegressor()
+    ALGORITHMS["random-forest-regression"] = lambda _: RandomForestRegressor()
 
     TECHNIQUES = {}
     CHARACTERISTICS = {}
