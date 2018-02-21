@@ -16,12 +16,12 @@ import statistics
 import pickle
 import pandas
 from tqdm import tqdm
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
-from sklearn import tree
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 
@@ -194,6 +194,7 @@ if __name__ == "__main__":
 
     ALGORITHMS = {}
 
+    # Classificator parts:
     # Do not include these algorithms with duplicates,
     # as they are very slow.
     if not ARGUMENTS.duplicates:
@@ -217,11 +218,11 @@ if __name__ == "__main__":
 
     ALGORITHMS["svm"] = lambda _: SVC()
 
-    ALGORITHMS["ada boost"] = lambda _: AdaBoostClassifier()
+    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
 
     ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
-    ALGORITHMS["decision-tree"] = lambda _: tree.DecisionTreeClassifier()
+    ALGORITHMS["decision-tree"] = lambda _: DecisionTreeClassifier()
 
     ALGORITHMS["random-forest"] = lambda _: RandomForestClassifier(
         n_estimators=20,
@@ -231,6 +232,15 @@ if __name__ == "__main__":
     ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
         solver="lbfgs",
     )
+
+    # Regressor part
+    ALGORITHMS["decision-tree-regression"] = lambda _: DecisionTreeRegressor()
+
+    ALGORITHMS["knn-regression"] = lambda _: KNeighborsRegressor(
+        weights='distance', n_neighbors=30
+    )
+
+    ALGORITHMS["random-forest-regression"] = lambda _: RandomForestRegressor()
 
     TECHNIQUES = {}
     CHARACTERISTICS = {}
