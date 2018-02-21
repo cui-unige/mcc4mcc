@@ -1,0 +1,22 @@
+sudo: required
+services:
+  - docker
+addons:
+  apt:
+    packages:
+    - shellcheck
+language: python
+python:
+  - "3.6"
+  # - "nightly"
+install:
+  - pip install -r mcc/requirements.txt
+script:
+  - shellcheck build install
+  - pycodestyle mcc/*.py
+  - pylint mcc/*.py
+notifications:
+  email:
+    - alban.linard@gmail.com
+  on_success: change
+  on_failure: change

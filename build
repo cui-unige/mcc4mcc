@@ -1,0 +1,30 @@
+#! /usr/bin/env bash
+
+set -e
+
+docker login \
+  -u "${DOCKER_USERNAME}" \
+  -p "${DOCKER_PASSWORD}"
+
+# tina is built before, because it is a dependency for tedd and sift
+for tool in lola \
+            ltsmin \
+            marcie \
+            tina \
+            sift \
+            tedd \
+            tapaal
+do
+  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ] && [ -f "${tool}/disable" ]
+  then
+    ( cd "${tool}"
+      echo "Building ${tool}..."
+      docker build \
+             --tag="mccpetrinets/${tool}" \
+             --force-rm \
+             --squash \
+             .
+      docker push "mccpetrinets/${tool}"
+    ) || exit 1
+  fi
+done
