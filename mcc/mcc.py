@@ -206,9 +206,6 @@ if __name__ == "__main__":
         TEST[key] = extract.translate(value)
     # http://scikit-learn.org/stable/modules/model_persistence.html
     PREDICTED = MODEL.predict(pandas.DataFrame([TEST]))
-    # FIXME: i am not sure the result is correct, because there is no check
-    # that the fields of the characteristic have the same name as the
-    # fields that were used during learning.
     LEARNED_TOOLS = [{"tool": extract.translate_back(PREDICTED[0])}]
 
     if ARGUMENTS.evaluate:
