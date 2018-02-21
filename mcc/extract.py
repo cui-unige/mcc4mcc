@@ -233,9 +233,6 @@ if __name__ == "__main__":
         solver="lbfgs",
     )
 
-    # Custom data
-    ALGORITHMS["my-algo"] = lambda _: MyAlgo()
-
     # Regressor part
     ALGORITHMS["decision-tree-regression"] = lambda _: DecisionTreeRegressor()
 
