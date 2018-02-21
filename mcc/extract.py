@@ -249,7 +249,7 @@ if __name__ == "__main__":
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
     with tqdm(total=sum(
         1 for line in open(ARGUMENTS.characteristics)) - 1
-            ) as counter:
+             ) as counter:
         with open(ARGUMENTS.characteristics) as data:
             data.readline()  # skip the title line
             READER = csv.reader(data)
