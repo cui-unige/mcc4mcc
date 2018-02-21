@@ -599,8 +599,6 @@ if __name__ == "__main__":
                 logging.info(f"  Max     : {max                (subresults)}")
                 logging.info(f"  Mean    : {statistics.mean    (subresults)}")
                 logging.info(f"  Median  : {statistics.median  (subresults)}")
-                logging.info(f"  Stdev   : {statistics.stdev   (subresults)}")
-                logging.info(f"  Variance: {statistics.variance(subresults)}")
             algorithm = falgorithm(True)
             algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
             if ARGUMENTS.mcc_score:
