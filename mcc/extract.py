@@ -17,12 +17,12 @@ import pickle
 from collections import Counter
 import pandas
 from tqdm import tqdm
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
-from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -105,14 +105,17 @@ class MyAlgo:
         # apply the mask
         copy_y[mask] = self.majority_class
         copy_y[~mask] = 0
-        # fit the binary classifier
-        self.binary.fit(training_x, copy_y)
-        # get the predictions
-        y_pred = self.binary.predict(training_x)
-        # filter the non majority class
-        mask = y_pred != self.majority_class
-        # fit on it
-        self.multi.fit(training_x[mask], training_y[mask])
+        # fit the binary classifier if the mask is enough
+        if np.any(mask):
+            self.binary.fit(training_x, copy_y)
+            # get the predictions
+            y_pred = self.binary.predict(training_x)
+            # filter the non majority class
+            mask = y_pred != self.majority_class
+            # fit on it
+            self.multi.fit(training_x[mask], training_y[mask])
+        else:
+            self.multi.fit(training_x, training_y)
 
     def predict(self, test_x):
         """Predict function. It predict the class, based on given features
@@ -120,7 +123,9 @@ class MyAlgo:
         test_x = np.array(test_x)
         y_pred = self.binary.predict(test_x)
         mask = y_pred != self.majority_class
-        y_pred[mask] = self.multi.predict(test_x[mask])
+        # to avoid the case of empty array
+        if np.any(mask):
+            y_pred[mask] = self.multi.predict(test_x[mask])
         return y_pred
 
     def score(self, test_x, test_y):
@@ -298,15 +303,6 @@ if __name__ == "__main__":
     ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
         solver="lbfgs",
     )
-
-    # Regressor part
-    ALGORITHMS["decision-tree-regression"] = lambda _: DecisionTreeRegressor()
-
-    ALGORITHMS["knn-regression"] = lambda _: KNeighborsRegressor(
-        weights='distance', n_neighbors=30
-    )
-
-    ALGORITHMS["random-forest-regression"] = lambda _: RandomForestRegressor()
 
     # Custom part
     ALGORITHMS["custom-algo"] = lambda _: MyAlgo()
