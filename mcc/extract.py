@@ -245,6 +245,13 @@ if __name__ == "__main__":
         dest="duplicates",
         default=False,
     )
+    PARSER.add_argument(
+        "--score",
+        help="Compute score in the Model Checking Contest",
+        type=bool,
+        dest="mcc_score",
+        default=True,
+    )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
         level=logging.INFO,
@@ -306,252 +313,373 @@ if __name__ == "__main__":
 
     TECHNIQUES = {}
     CHARACTERISTICS = {}
+    TOOLS = {}
 
+    def read_characteristics():
+        """
+        Reads the model characteristics.
+        """
+        with tqdm(total=sum(
+            1 for line in open(ARGUMENTS.characteristics)) - 1
+                 ) as counter:
+            with open(ARGUMENTS.characteristics) as data:
+                data.readline()  # skip the title line
+                reader = csv.reader(data)
+                for row in reader:
+                    entry = {}
+                    for i, characteristic in enumerate(CHARACTERISTIC_KEYS):
+                        entry[characteristic] = value_of(row[i])
+                    entry["Place/Transition"] = True if re.search(
+                        "PT", entry["Type"]) else False
+                    entry["Colored"] = True if re.search(
+                        "COLORED", entry["Type"]) else False
+                    del entry["Type"]
+                    del entry["Fixed size"]
+                    del entry["Origin"]
+                    del entry["Submitter"]
+                    del entry["Year"]
+                    CHARACTERISTICS[entry["Id"]] = entry
+                    counter.update(1)
     logging.info(
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
-    with tqdm(total=sum(
-        1 for line in open(ARGUMENTS.characteristics)) - 1
-             ) as counter:
-        with open(ARGUMENTS.characteristics) as data:
-            data.readline()  # skip the title line
-            READER = csv.reader(data)
-            for row in READER:
-                entry = {}
-                for i, characteristic in enumerate(CHARACTERISTIC_KEYS):
-                    entry[characteristic] = value_of(row[i])
-                entry["Place/Transition"] = True if re.search(
-                    "PT", entry["Type"]) else False
-                entry["Colored"] = True if re.search(
-                    "COLORED", entry["Type"]) else False
-                del entry["Type"]
-                del entry["Fixed size"]
-                del entry["Origin"]
-                del entry["Submitter"]
-                del entry["Year"]
-                CHARACTERISTICS[entry["Id"]] = entry
-                counter.update(1)
+    read_characteristics()
 
     RESULTS = {}
+
+    def read_results():
+        """
+        Reads the results of the model checking contest.
+        """
+        with tqdm(total=sum(1 for line in open(ARGUMENTS.results)) - 1) \
+                as counter:
+            with open(ARGUMENTS.results) as data:
+                data.readline()  # skip the title line
+                reader = csv.reader(data)
+                for row in reader:
+                    entry = {}
+                    for i, result in enumerate(RESULT_KEYS):
+                        entry[result] = value_of(row[i])
+                    if entry["Time OK"] \
+                            and entry["Memory OK"] \
+                            and entry["Status"] == "normal" \
+                            and entry["Results"] not in ["DNC", "DNF", "CC"]:
+                        RESULTS[entry["Id"]] = entry
+                        for technique in re.findall(
+                                r"([A-Z_]+)",
+                                entry["Techniques"]
+                        ):
+                            TECHNIQUES[technique] = True
+                            entry[technique] = True
+                        entry["Surprise"] = True if re.search(
+                            r"^S_", entry["Instance"]) else False
+                        if entry["Surprise"]:
+                            entry["Instance"] = re.search(
+                                r"^S_(.*)$", entry["Instance"]).group(1)
+                        split = re.search(
+                            r"([^-]+)\-([^-]+)\-([^-]+)$", entry["Instance"])
+                        if split is None:
+                            entry["Model Id"] = entry["Instance"]
+                        else:
+                            entry["Model Id"] = split.group(1)
+                        if entry["Model Id"] in CHARACTERISTICS:
+                            model = CHARACTERISTICS[entry["Model Id"]]
+                            for key in model.keys():
+                                if key != "Id":
+                                    entry[key] = model[key]
+                        del entry["Time OK"]
+                        del entry["Memory OK"]
+                        del entry["CPU Time"]
+                        del entry["Cores"]
+                        del entry["IO Time"]
+                        del entry["Results"]
+                        del entry["Status"]
+                        del entry["Techniques"]
+                    counter.update(1)
     logging.info(f"Reading mcc results from '{ARGUMENTS.results}'.")
-    with tqdm(total=sum(1 for line in open(ARGUMENTS.results)) - 1) as counter:
-        with open(ARGUMENTS.results) as data:
-            data.readline()  # skip the title line
-            READER = csv.reader(data)
-            for row in READER:
-                entry = {}
-                for i, result in enumerate(RESULT_KEYS):
-                    entry[result] = value_of(row[i])
-                if entry["Time OK"] \
-                        and entry["Memory OK"] \
-                        and entry["Status"] == "normal" \
-                        and entry["Results"] not in ["DNC", "DNF", "CC"]:
-                    RESULTS[entry["Id"]] = entry
-                    for technique in re.findall(
-                            r"([A-Z_]+)",
-                            entry["Techniques"]
-                    ):
-                        TECHNIQUES[technique] = True
-                        entry[technique] = True
-                    entry["Surprise"] = True if re.search(
-                        r"^S_", entry["Instance"]) else False
-                    if entry["Surprise"]:
-                        entry["Instance"] = re.search(
-                            r"^S_(.*)$", entry["Instance"]).group(1)
-                    split = re.search(
-                        r"([^-]+)\-([^-]+)\-([^-]+)$", entry["Instance"])
-                    if split is None:
-                        entry["Model Id"] = entry["Instance"]
-                    else:
-                        entry["Model Id"] = split.group(1)
-                    if entry["Model Id"] in CHARACTERISTICS:
-                        model = CHARACTERISTICS[entry["Model Id"]]
-                        for key in model.keys():
-                            if key != "Id":
-                                entry[key] = model[key]
-                    del entry["Time OK"]
-                    del entry["Memory OK"]
-                    del entry["CPU Time"]
-                    del entry["Cores"]
-                    del entry["IO Time"]
-                    del entry["Results"]
-                    del entry["Status"]
-                    del entry["Techniques"]
+    read_results()
+
+    def set_techniques():
+        """
+        Sets techniques to Boolean values in results.
+        """
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                for technique in TECHNIQUES:
+                    if technique not in entry:
+                        entry[technique] = False
                 counter.update(1)
-
     logging.info(f"Setting all techniques to Boolean values.")
-    with tqdm(total=len(RESULTS)) as counter:
-        for key, entry in RESULTS.items():
-            for technique in TECHNIQUES:
-                if technique not in entry:
-                    entry[technique] = False
-            counter.update(1)
+    set_techniques()
 
-    logging.info(f"Sorting data.")
     SIZE = len(RESULTS)
     DATA = {}
     TOOL_YEAR = {}
-    with tqdm(total=len(RESULTS)) as counter:
-        for _, entry in RESULTS.items():
-            if entry["Examination"] not in DATA:
-                DATA[entry["Examination"]] = {}
-            examination = DATA[entry["Examination"]]
-            if entry["Model Id"] not in examination:
-                examination[entry["Model Id"]] = {}
-            model = examination[entry["Model Id"]]
-            if entry["Instance"] not in model:
-                model[entry["Instance"]] = {}
-            instance = model[entry["Instance"]]
-            if entry["Tool"] not in instance:
-                instance[entry["Tool"]] = {}
-            tool = instance[entry["Tool"]]
-            if entry["Tool"] not in TOOL_YEAR:
-                TOOL_YEAR[entry["Tool"]] = 0
-            if entry["Year"] > TOOL_YEAR[entry["Tool"]]:
-                TOOL_YEAR[entry["Tool"]] = entry["Year"]
-            if entry["Year"] in tool:
-                SIZE -= 1
-                if entry["Clock Time"] < tool[entry["Year"]]["Clock Time"]:
-                    tool[entry["Year"]] = entry
-            else:
-                tool[entry["Year"]] = entry
-            counter.update(1)
 
-    logging.info(f"Analyzing known data.")
+    def sort_data():
+        """
+        Sorts data into tree of examination/model/instance/tool/year/entry.
+        """
+        size = SIZE
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                if entry["Tool"] not in TOOLS:
+                    TOOLS[entry["Tool"]] = True
+                if entry["Examination"] not in DATA:
+                    DATA[entry["Examination"]] = {}
+                examination = DATA[entry["Examination"]]
+                if entry["Model Id"] not in examination:
+                    examination[entry["Model Id"]] = {}
+                model = examination[entry["Model Id"]]
+                if entry["Instance"] not in model:
+                    model[entry["Instance"]] = {}
+                instance = model[entry["Instance"]]
+                if entry["Tool"] not in instance:
+                    instance[entry["Tool"]] = {}
+                tool = instance[entry["Tool"]]
+                if entry["Tool"] not in TOOL_YEAR:
+                    TOOL_YEAR[entry["Tool"]] = 0
+                if entry["Year"] > TOOL_YEAR[entry["Tool"]]:
+                    TOOL_YEAR[entry["Tool"]] = entry["Year"]
+                if entry["Year"] in tool:
+                    size -= 1
+                    if entry["Clock Time"] < tool[entry["Year"]]["Clock Time"]:
+                        tool[entry["Year"]] = entry
+                else:
+                    tool[entry["Year"]] = entry
+                counter.update(1)
+        return size
+
+    logging.info(f"Sorting data.")
+    SIZE = sort_data()
+
     KNOWN = {}
     DISTANCE = ARGUMENTS.distance
-    with tqdm(total=SIZE) as counter:
-        for examination, models in DATA.items():
-            KNOWN[examination] = {}
-            known_e = KNOWN[examination]
-            for model, instances in models.items():
-                known_e[model] = {}
-                known_m = known_e[model]
-                subresults = {}
-                for instance, tools in instances.items():
-                    known_m[instance] = {}
-                    known_i = known_m[instance]
-                    subsubresults = {}
-                    for tool, years in tools.items():
-                        if tool not in subresults:
-                            subresults[tool] = {
-                                "count": 0,
-                                "time": 0,
-                                "memory": 0,
-                            }
-                        for year, entry in years.items():
-                            if year == TOOL_YEAR[tool]:
-                                subsubresults[tool] = {
-                                    "time": entry["Clock Time"],
-                                    "memory": entry["Memory"],
-                                }
-                                subresults[tool]["count"] += 1
-                                subresults[tool]["time"] += entry["Clock Time"]
-                                subresults[tool]["memory"] += entry["Memory"]
-                            counter.update(1)
-                    s = sorted(subsubresults.items(), key=lambda e: (
-                        e[1]["time"], e[1]["memory"]))
-                    # Select only the tools that are within a distance
-                    # from the best:
-                    known_i["sorted"] = [
-                        {"tool": x[0],
-                         "time": x[1]["time"],
-                         "memory": x[1]["memory"]} for x in s]
-                s = sorted(
-                    subresults.items(),
-                    key=lambda e: (
-                        -e[1]["count"],
-                        e[1]["time"],
-                        e[1]["memory"]
-                    )
-                )
-                known_m["sorted"] = [
-                    {"tool": x[0],
-                     "count": x[1]["count"],
-                     "time": x[1]["time"],
-                     "memory": x[1]["memory"]} for x in s]
-                # Select all tools that reach both the maximum count and
-                # the expected distance from the best:
-                if known_m["sorted"]:
-                    best = known_m["sorted"][0]
-                    for x in known_m["sorted"]:
-                        if x["count"] == best["count"]:
-                            for instance, tools in instances.items():
-                                tool = x["tool"]
-                                ratio = x["time"] / best["time"]
-                                if tool in tools \
-                                        and TOOL_YEAR[tool] in tools[tool] \
-                                        and (DISTANCE is None
-                                             or ratio <= (1+DISTANCE)):
-                                    entry = tools[tool][TOOL_YEAR[tool]]
-                                    entry["Selected"] = True
-    with open("known.json", "w") as output:
-        json.dump(KNOWN, output)
 
-    logging.info(f"Analyzing learned data.")
+    def analyze_known():
+        """
+        Analyzes known data.
+        """
+        with tqdm(total=SIZE) as counter:
+            for examination, models in DATA.items():
+                KNOWN[examination] = {}
+                known_e = KNOWN[examination]
+                for model, instances in models.items():
+                    known_e[model] = {}
+                    known_m = known_e[model]
+                    subresults = {}
+                    for instance, tools in instances.items():
+                        known_m[instance] = {}
+                        known_i = known_m[instance]
+                        subsubresults = {}
+                        for tool, years in tools.items():
+                            if tool not in subresults:
+                                subresults[tool] = {
+                                    "count": 0,
+                                    "time": 0,
+                                    "memory": 0,
+                                }
+                            for year, entry in years.items():
+                                if year == TOOL_YEAR[tool]:
+                                    subsubresults[tool] = {
+                                        "time": entry["Clock Time"],
+                                        "memory": entry["Memory"],
+                                    }
+                                    subresults[tool]["count"] += 1
+                                    subresults[tool]["time"] += \
+                                        entry["Clock Time"]
+                                    subresults[tool]["memory"] += \
+                                        entry["Memory"]
+                                counter.update(1)
+                        srt = sorted(subsubresults.items(), key=lambda e: (
+                            e[1]["time"], e[1]["memory"]))
+                        # Select only the tools that are within a distance
+                        # from the best:
+                        known_i["sorted"] = [
+                            {"tool": x[0],
+                             "time": x[1]["time"],
+                             "memory": x[1]["memory"]} for x in srt]
+                    srt = sorted(
+                        subresults.items(),
+                        key=lambda e: (
+                            -e[1]["count"],
+                            e[1]["time"],
+                            e[1]["memory"]
+                        )
+                    )
+                    known_m["sorted"] = [
+                        {"tool": x[0],
+                         "count": x[1]["count"],
+                         "time": x[1]["time"],
+                         "memory": x[1]["memory"]} for x in srt]
+                    # Select all tools that reach both the maximum count and
+                    # the expected distance from the best:
+                    if known_m["sorted"]:
+                        best = known_m["sorted"][0]
+                        for x_e in known_m["sorted"]:
+                            if x_e["count"] == best["count"]:
+                                for instance, tools in instances.items():
+                                    tool = x_e["tool"]
+                                    ratio = x_e["time"] / best["time"]
+                                    if tool in tools \
+                                            and TOOL_YEAR[tool] in tools[tool]\
+                                            and (DISTANCE is None
+                                                 or ratio <= (1+DISTANCE)):
+                                        entry = tools[tool][TOOL_YEAR[tool]]
+                                        entry["Selected"] = True
+        with open("known.json", "w") as output:
+            json.dump(KNOWN, output)
+
+    logging.info(f"Analyzing known data.")
+    analyze_known()
+
+    MAX_SCORE = 16 + 2 + 2
+
+    def best_time_of(sequence, seq_key):
+        """
+        Computes the time of the best in sequence, sorted by seq_key.
+        """
+        rbest = sorted(
+            sequence,
+            key=lambda e: e[seq_key]
+        )
+        if rbest:
+            return rbest[0]["time"]
+        return None
+
+    def mcc_score(alg_or_tool):
+        """
+        Computes a score using the rules from the MCC.
+        """
+        score = 0
+        for examination, models in KNOWN.items():
+            for model, instances in models.items():
+                if alg_or_tool in TOOLS:
+                    tool = alg_or_tool
+                else:
+                    test = {}
+                    test["Examination"] = translate(examination)
+                    for key, value in CHARACTERISTICS[model].items():
+                        test[key] = translate(value)
+                    del test["Id"]
+                    del test["Parameterised"]
+                    tool = translate_back(
+                        alg_or_tool.predict(pandas.DataFrame([test]))[0]
+                    )
+                subscore = 0
+                for instance, data in instances.items():
+                    if instance == "sorted":
+                        continue
+                    for entry in data["sorted"]:
+                        if entry["tool"] != tool:
+                            continue
+                        bestt = best_time_of(data["sorted"], "time")
+                        bestm = best_time_of(data["sorted"], "memory")
+                        subscore += 16 + \
+                            (2 if entry["time"] == bestt else 0) + \
+                            (2 if entry["memory"] == bestm else 0)
+                        break
+                score = (
+                    score +
+                    subscore / (len(instances)-1)
+                )
+        return int(score)
+
+    SCORES = {}
+
+    def compute_scores():
+        """
+        Computes the scores of all tools.
+        """
+        with tqdm(total=len(TOOLS)) as counter:
+            for tool in TOOLS:
+                SCORES[tool] = mcc_score(tool)
+                counter.update(1)
+
+    if ARGUMENTS.mcc_score:
+        logging.info(f"Computing scores.")
+        compute_scores()
+
     LEARNED = []
+    ALGORITHMS_RESULTS = []
     translate.ITEMS = {
         False: -1,
         None: 0,
         True: 1,
     }
 
-    with tqdm(total=len(RESULTS)) as counter:
-        for _, entry in RESULTS.items():
-            if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
-                    and "Selected" in entry \
-                    and entry["Selected"]:
-                cp = {}
-                for key, value in entry.items():
-                    if key not in [
-                            "Id", "Model Id", "Instance", "Year",
-                            "Memory", "Clock Time",
-                            "Parameterised", "Selected", "Surprise"] \
-                            and key not in TECHNIQUES:
-                        cp[key] = translate(value)
-                LEARNED.append(cp)
-            counter.update(1)
-    logging.info(f"Select {len (LEARNED)} best entries.")
-    # Convert this dict into dataframe:
-    DF = pandas.DataFrame(LEARNED)
-    # Remove duplicate entries if required:
-    if not ARGUMENTS.duplicates:
-        DF = DF.drop_duplicates(keep="first")
-    logging.info(f"Using {DF.shape [0]} non duplicate entries for learning.")
-    # Compute efficiency for each algorithm:
-    ALGORITHMS_RESULTS = []
-    for name, falgorithm in ALGORITHMS.items():
-        subresults = []
-        logging.info(f"Learning using algorithm: '{name}'.")
-        for _ in tqdm(range(ARGUMENTS.iterations)):
-            train, test = train_test_split(DF)
-            training_X = train.drop("Tool", 1)
-            training_Y = train["Tool"]
-            test_X = test.drop("Tool", 1)
-            test_Y = test["Tool"]
-            # Apply algorithm:
+    def analyze_learned():
+        """
+        Analyzes learned data.
+        """
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+                        and "Selected" in entry \
+                        and entry["Selected"]:
+                    characteristics = {}
+                    for key, value in entry.items():
+                        if key not in [
+                                "Id", "Model Id", "Instance", "Year",
+                                "Memory", "Clock Time",
+                                "Parameterised", "Selected", "Surprise"] \
+                                and key not in TECHNIQUES:
+                            characteristics[key] = translate(value)
+                    LEARNED.append(characteristics)
+                counter.update(1)
+        logging.info(f"Select {len (LEARNED)} best entries.")
+        # Convert this dict into dataframe:
+        dataframe = pandas.DataFrame(LEARNED)
+        # Remove duplicate entries if required:
+        if not ARGUMENTS.duplicates:
+            dataframe = dataframe.drop_duplicates(keep="first")
+        logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
+        # Compute efficiency for each algorithm:
+        for name, falgorithm in ALGORITHMS.items():
+            subresults = []
+            logging.info(f"Learning using algorithm: '{name}'.")
+            alg_results = {}
+            if ARGUMENTS.iterations > 0:
+                for _ in tqdm(range(ARGUMENTS.iterations)):
+                    train, test = train_test_split(dataframe)
+                    training_x = train.drop("Tool", 1)
+                    training_y = train["Tool"]
+                    test_x = test.drop("Tool", 1)
+                    test_y = test["Tool"]
+                    # Apply algorithm:
+                    algorithm = falgorithm(True)
+                    algorithm.fit(training_x, training_y)
+                    subresults.append(algorithm.score(test_x, test_y))
+                alg_results = {
+                    "algorithm": name,
+                    "min": min(subresults),
+                    "max": max(subresults),
+                    "mean": statistics.mean(subresults),
+                    "median": statistics.median(subresults),
+                }
+                logging.info(f"Algorithm: {name}")
+                logging.info(f"  Min     : {min                (subresults)}")
+                logging.info(f"  Max     : {max                (subresults)}")
+                logging.info(f"  Mean    : {statistics.mean    (subresults)}")
+                logging.info(f"  Median  : {statistics.median  (subresults)}")
             algorithm = falgorithm(True)
-            algorithm.fit(training_X, training_Y)
-            subresults.append(algorithm.score(test_X, test_Y))
-        ALGORITHMS_RESULTS.append({
-            "algorithm": name,
-            "min": min(subresults),
-            "max": max(subresults),
-            "mean": statistics.mean(subresults),
-            "median": statistics.median(subresults),
-        })
-        logging.info(f"Algorithm: {name}")
-        logging.info(f"  Min     : {min                (subresults)}")
-        logging.info(f"  Max     : {max                (subresults)}")
-        logging.info(f"  Mean    : {statistics.mean    (subresults)}")
-        logging.info(f"  Median  : {statistics.median  (subresults)}")
-        logging.info(f"  Stdev   : {statistics.stdev   (subresults)}")
-        logging.info(f"  Variance: {statistics.variance(subresults)}")
-        algorithm = falgorithm(True)
-        algorithm.fit(DF.drop("Tool", 1), DF["Tool"])
-        with open(f"learned.{name}.p", "wb") as output:
-            pickle.dump(algorithm, output)
-    with open("learned.json", "w") as output:
-        json.dump({
-            "algorithms": ALGORITHMS_RESULTS,
-            "translation": translate.ITEMS,
-        }, output)
+            algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
+            if ARGUMENTS.mcc_score:
+                SCORES[name] = mcc_score(algorithm)
+                alg_results["score"] = SCORES[name]
+                logging.info(f"  Score   : {SCORES[name]}")
+            ALGORITHMS_RESULTS.append(alg_results)
+            with open(f"learned.{name}.p", "wb") as output:
+                pickle.dump(algorithm, output)
+        for name, score in SCORES.items():
+            if name in TOOLS:
+                logging.info(f"Tool {name} has score {score}.")
+            elif name in ALGORITHMS:
+                logging.info(f"Algorithm {name} has score {score}.")
+        with open("learned.json", "w") as output:
+            json.dump({
+                "algorithms": ALGORITHMS_RESULTS,
+                "translation": translate.ITEMS,
+            }, output)
+
+    logging.info(f"Analyzing learned data.")
+    analyze_learned()

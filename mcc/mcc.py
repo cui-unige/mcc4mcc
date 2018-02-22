@@ -115,7 +115,7 @@ if __name__ == "__main__":
     if ARGUMENTS.algorithm is None:
         ALGORITHM = sorted(
             LEARNED["algorithms"],
-            key=lambda e: e["mean"],
+            key=lambda e: (e["score"], e["mean"], e["max"]),
             reverse=True
         )[0]["algorithm"]
     else:
