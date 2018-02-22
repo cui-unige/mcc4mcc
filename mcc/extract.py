@@ -105,14 +105,17 @@ class MyAlgo:
         # apply the mask
         copy_y[mask] = self.majority_class
         copy_y[~mask] = 0
-        # fit the binary classifier
-        self.binary.fit(training_x, copy_y)
-        # get the predictions
-        y_pred = self.binary.predict(training_x)
-        # filter the non majority class
-        mask = y_pred != self.majority_class
-        # fit on it
-        self.multi.fit(training_x[mask], training_y[mask])
+        # fit the binary classifier if the mask is enough
+        if np.any(mask):
+            self.binary.fit(training_x, copy_y)
+            # get the predictions
+            y_pred = self.binary.predict(training_x)
+            # filter the non majority class
+            mask = y_pred != self.majority_class
+            # fit on it
+            self.multi.fit(training_x[mask], training_y[mask])
+        else:
+            self.multi.fit(training_x, training_y)
 
     def predict(self, test_x):
         """Predict function. It predict the class, based on given features
@@ -120,7 +123,9 @@ class MyAlgo:
         test_x = np.array(test_x)
         y_pred = self.binary.predict(test_x)
         mask = y_pred != self.majority_class
-        y_pred[mask] = self.multi.predict(test_x[mask])
+        # to avoid the case of empty array
+        if np.any(mask):
+            y_pred[mask] = self.multi.predict(test_x[mask])
         return y_pred
 
     def score(self, test_x, test_y):
