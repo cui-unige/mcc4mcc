@@ -299,15 +299,6 @@ if __name__ == "__main__":
         solver="lbfgs",
     )
 
-    # Regressor part
-    ALGORITHMS["decision-tree-regression"] = lambda _: DecisionTreeRegressor()
-
-    ALGORITHMS["knn-regression"] = lambda _: KNeighborsRegressor(
-        weights='distance', n_neighbors=30
-    )
-
-    ALGORITHMS["random-forest-regression"] = lambda _: RandomForestRegressor()
-
     # Custom part
     ALGORITHMS["custom-algo"] = lambda _: MyAlgo()
 
