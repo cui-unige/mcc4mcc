@@ -23,6 +23,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import VotingClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -297,6 +298,22 @@ if __name__ == "__main__":
 
     ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
         solver="lbfgs",
+    )
+
+    # Voting part:
+    ALGORITHMS["voting-hard"] = lambda _: VotingClassifier(
+        estimators=[
+            # ("knn", ALGORITHMS["knn"](True)),
+            # ("bagging-knn", ALGORITHMS["bagging-knn"](True)),
+            ("naive-bayes", ALGORITHMS["naive-bayes"](True)),
+            ("svm", ALGORITHMS["svm"](True)),
+            ("ada-boost", ALGORITHMS["ada-boost"](True)),
+            ("linear-svm", ALGORITHMS["linear-svm"](True)),
+            ("decision-tree", ALGORITHMS["decision-tree"](True)),
+            ("random-forest", ALGORITHMS["random-forest"](True)),
+            ("neural-network", ALGORITHMS["neural-network"](True)),
+        ],
+        voting="hard",
     )
 
     # Regressor part
