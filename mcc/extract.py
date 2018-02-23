@@ -81,7 +81,7 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
     majority class. There is fit and score methods like in Scikit."""
 
-    def __init__(self, class_weight='balanced', n_estimators=30):
+    def __init__(self, class_weight="balanced", n_estimators=30):
         self.class_weight = class_weight
         self.n_estimators = n_estimators
 
@@ -357,7 +357,7 @@ if __name__ == "__main__":
             )),
             ("svm", SVC(probability=True))
         ],
-        voting='soft'
+        voting="soft"
     )
 
     # Custom part
@@ -734,9 +734,9 @@ if __name__ == "__main__":
             }, output)
 
         if ARGUMENTS.output_dt:
-            if "decision-tree" in ALGORITHMS.keys():
+            if "decision-tree" in ALGORITHMS:
                 tree.export_graphviz(
-                    ALGORITHMS['decision-tree'](True).fit(
+                    ALGORITHMS["decision-tree"](True).fit(
                         dataframe.drop("Tool", 1), dataframe["Tool"]
                     ),
                     feature_names=dataframe.drop("Tool", 1).columns,
