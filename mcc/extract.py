@@ -25,6 +25,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
+from sklearn import tree
 from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
 
@@ -80,7 +81,7 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
     majority class. There is fit and score methods like in Scikit."""
 
-    def __init__(self, class_weight='balanced', n_estimators=30):
+    def __init__(self, class_weight="balanced", n_estimators=30):
         self.class_weight = class_weight
         self.n_estimators = n_estimators
 
@@ -292,6 +293,13 @@ if __name__ == "__main__":
         dest="mcc_score",
         default=True,
     )
+    PARSER.add_argument(
+        "--output-dt",
+        help="Output the graph of trained decision tree.",
+        type=bool,
+        dest="output_dt",
+        default=False,
+    )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
         level=logging.INFO,
@@ -349,7 +357,7 @@ if __name__ == "__main__":
             )),
             ("svm", SVC(probability=True))
         ],
-        voting='soft'
+        voting="soft"
     )
 
     # Custom part
@@ -724,6 +732,17 @@ if __name__ == "__main__":
                 "algorithms": ALGORITHMS_RESULTS,
                 "translation": translate.ITEMS,
             }, output)
+
+        if ARGUMENTS.output_dt:
+            if "decision-tree" in ALGORITHMS:
+                tree.export_graphviz(
+                    ALGORITHMS["decision-tree"](True).fit(
+                        dataframe.drop("Tool", 1), dataframe["Tool"]
+                    ),
+                    feature_names=dataframe.drop("Tool", 1).columns,
+                    filled=True, rounded=True,
+                    special_characters=True
+                )
 
     logging.info(f"Analyzing learned data.")
     analyze_learned()
