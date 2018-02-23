@@ -95,6 +95,7 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
         )
 
         self.majority_class = None
+        self.classes = None
 
     def fit(self, training_x, training_y):
         """Training function. It takes a training vector features and a
