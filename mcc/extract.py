@@ -25,6 +25,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
+from sklearn import tree
 import numpy as np
 
 CHARACTERISTIC_KEYS = [
@@ -256,6 +257,13 @@ if __name__ == "__main__":
         type=bool,
         dest="mcc_score",
         default=True,
+    )
+    PARSER.add_argument(
+        "--output-dt",
+        help="Output the graph of trained decision tree.",
+        type=bool,
+        dest="output_dt",
+        default=False,
     )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
@@ -676,6 +684,17 @@ if __name__ == "__main__":
                 "algorithms": ALGORITHMS_RESULTS,
                 "translation": translate.ITEMS,
             }, output)
+
+        if ARGUMENTS.output_dt:
+            if "decision-tree" in ALGORITHMS.keys():
+                tree.export_graphviz(
+                    ALGORITHMS['decision-tree'](True).fit(
+                        dataframe.drop("Tool", 1), dataframe["Tool"]
+                    ),
+                    feature_names=dataframe.drop("Tool", 1).columns,
+                    filled=True, rounded=True,
+                    special_characters=True
+                )
 
     logging.info(f"Analyzing learned data.")
     analyze_learned()
