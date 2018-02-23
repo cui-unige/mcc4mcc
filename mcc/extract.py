@@ -8,6 +8,7 @@ and learn from data for approximate algorithm.
 
 import argparse
 import csv
+import itertools
 import json
 import logging
 import os
@@ -72,6 +73,29 @@ RESULT_KEYS = [
     "IO Time",
     "Status",
     "Id",
+]
+
+TO_DROP = [
+    "Ordinary",
+    "Simple Free Choice",
+    "Extended Free Choice",
+    "State Machine",
+    "Marked Graph",
+    "Connected",
+    "Strongly Connected",
+    "Source Place",
+    "Sink Place",
+    "Source Transition",
+    "Sink Transition",
+    "Loop Free",
+    "Conservative",
+    "Sub-Conservative",
+    "Nested Units",
+    "Safe",
+    "Deadlock",
+    "Reversible",
+    "Quasi Live",
+    "Live",
 ]
 
 
@@ -181,6 +205,17 @@ def value_of(what):
     return what
 
 
+def powerset(iterable):
+    """
+    Computes the powerset of an iterable.
+    See https://docs.python.org/2/library/itertools.html.
+    """
+    as_list = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(as_list, r) for r in range(len(as_list)+1)
+    )
+
+
 def knn_distance(lhs, rhs, bound=2):
     """
     Fix the distance for knn, by taking into account that numbers greater
@@ -256,6 +291,13 @@ if __name__ == "__main__":
         type=bool,
         dest="mcc_score",
         default=True,
+    )
+    PARSER.add_argument(
+        "--powerset",
+        help="Compute results for combinations of characteristics",
+        type=bool,
+        dest="powerset",
+        default=False,
     )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
@@ -552,7 +594,7 @@ if __name__ == "__main__":
                 score += 16 + 2 + 2
         return int(score)
 
-    def mcc_score(alg_or_tool):
+    def mcc_score(alg_or_tool, to_drop=None):
         """
         Computes a score using the rules from the MCC.
         """
@@ -568,9 +610,10 @@ if __name__ == "__main__":
                         test[key] = translate(value)
                     del test["Id"]
                     del test["Parameterised"]
-                    tool = translate_back(
-                        alg_or_tool.predict(pandas.DataFrame([test]))[0]
-                    )
+                    dataframe = pandas.DataFrame([test])
+                    if to_drop is not None:
+                        dataframe = dataframe.drop(to_drop, 1)
+                    tool = translate_back(alg_or_tool.predict(dataframe)[0])
                 subscore = 0
                 for instance, data in instances.items():
                     if instance == "sorted":
@@ -612,6 +655,11 @@ if __name__ == "__main__":
         None: 0,
         True: 1,
     }
+    REMOVE = [
+        "Id", "Model Id", "Instance", "Year",
+        "Memory", "Clock Time",
+        "Parameterised", "Selected", "Surprise"
+    ]
 
     def analyze_learned():
         """
@@ -624,10 +672,7 @@ if __name__ == "__main__":
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in [
-                                "Id", "Model Id", "Instance", "Year",
-                                "Memory", "Clock Time",
-                                "Parameterised", "Selected", "Surprise"] \
+                        if key not in REMOVE \
                                 and key not in TECHNIQUES:
                             characteristics[key] = translate(value)
                     LEARNED.append(characteristics)
@@ -691,3 +736,52 @@ if __name__ == "__main__":
 
     logging.info(f"Analyzing learned data.")
     analyze_learned()
+
+    def analyze_powerset():
+        """
+        Analyzes powerset of characteristics.
+        """
+        best_score = 0
+        best_algorithm = None
+        for name, score in SCORES.items():
+            if name in ALGORITHMS and score > best_score:
+                best_score = score
+                best_algorithm = name
+        logging.info(f"Using best algorithm {best_algorithm} for powersets.")
+        learned = []
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+                        and "Selected" in entry \
+                        and entry["Selected"]:
+                    characteristics = {}
+                    for key, value in entry.items():
+                        if key not in REMOVE \
+                                and key not in TECHNIQUES:
+                            characteristics[key] = translate(value)
+                    learned.append(characteristics)
+                counter.update(1)
+        # Convert this dict into dataframe:
+        dataframe = pandas.DataFrame(learned)
+        # Remove duplicate entries if required:
+        if not ARGUMENTS.duplicates:
+            dataframe = dataframe.drop_duplicates(keep="first")
+        logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
+        all_powersets = [x for x in powerset(TO_DROP) if x and len(x) < 4]
+        results = {}
+        with tqdm(total=len(all_powersets)) as pcounter:
+            for current_set in all_powersets:
+                to_drop = list(set(TO_DROP) - set(current_set))
+                algorithm = ALGORITHMS[best_algorithm](True)
+                algorithm.fit(
+                    dataframe.drop("Tool", 1).drop(to_drop, 1),
+                    dataframe["Tool"]
+                )
+                results[current_set] = mcc_score(algorithm, to_drop)
+                pcounter.update(1)
+        best_c = sorted(results.items(), key=lambda e: e[1])
+        logging.info(f"Characteristics {best_c[0]} are the best.")
+
+    if ARGUMENTS.powerset and ARGUMENTS.mcc_score:
+        logging.info(f"Analyzing powerset of characteristics.")
+        analyze_powerset()
