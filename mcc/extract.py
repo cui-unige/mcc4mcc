@@ -542,6 +542,16 @@ if __name__ == "__main__":
             return rbest[0]["time"]
         return None
 
+    def max_score():
+        """
+        Computes the maximum score using the rules from the MCC.
+        """
+        score = 0
+        for _, models in KNOWN.items():
+            for _ in models.items():
+                score += 16 + 2 + 2
+        return int(score)
+
     def mcc_score(alg_or_tool):
         """
         Computes a score using the rules from the MCC.
@@ -666,16 +676,18 @@ if __name__ == "__main__":
             ALGORITHMS_RESULTS.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
-        for name, score in SCORES.items():
-            if name in TOOLS:
-                logging.info(f"Tool {name} has score {score}.")
-            elif name in ALGORITHMS:
-                logging.info(f"Algorithm {name} has score {score}.")
         with open("learned.json", "w") as output:
             json.dump({
                 "algorithms": ALGORITHMS_RESULTS,
                 "translation": translate.ITEMS,
             }, output)
+        if ARGUMENTS.mcc_score:
+            logging.info(f"Maximum score is {max_score()}.")
+            for name, score in SCORES.items():
+                if name in TOOLS:
+                    logging.info(f"Tool {name} has score {score}.")
+                elif name in ALGORITHMS:
+                    logging.info(f"Algorithm {name} has score {score}.")
 
     logging.info(f"Analyzing learned data.")
     analyze_learned()
