@@ -843,7 +843,6 @@ if __name__ == "__main__":
             # To do so, build tuples of n characteristics (n growing from 2),
             # and try to remove them from the model.
             for length in range(2, len(useless)):
-                logging.info(f"  Analyzing {length}-tuples characteristics.")
                 sets = [list(x) for x in powerset(useless) if len(x) == length]
                 related = []
                 with tqdm(total=len(sets)) as counter:
@@ -856,19 +855,18 @@ if __name__ == "__main__":
                             if rel < set(characteristics):
                                 is_interesting = False
                                 break
-                        if not is_interesting:
-                            counter.update(1)
-                            continue
-                        algorithm = falgorithm(True)
-                        algorithm.fit(
-                            dataframe.drop("Tool", 1).drop(characteristics, 1),
-                            dataframe["Tool"]
-                        )
-                        score = mcc_score(algorithm, characteristics)
-                        # If the score has changed, the characteristics
-                        # are linked:
-                        if score != SCORES[name]:
-                            related.append(set(characteristics))
+                        if is_interesting:
+                            algorithm = falgorithm(True)
+                            algorithm.fit(
+                                dataframe.drop("Tool", 1)
+                                .drop(characteristics, 1),
+                                dataframe["Tool"]
+                            )
+                            score = mcc_score(algorithm, characteristics)
+                            # If the score has changed, the characteristics
+                            # are linked:
+                            if score != SCORES[name]:
+                                related.append(set(characteristics))
                         counter.update(1)
                 if not related:
                     break
