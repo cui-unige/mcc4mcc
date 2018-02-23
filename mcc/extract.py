@@ -186,6 +186,17 @@ def translate_back(what):
     return None
 
 
+def powerset(iterable):
+    """
+    Computes the powerset of an iterable.
+    See https://docs.python.org/2/library/itertools.html.
+    """
+    as_list = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(as_list, r) for r in range(len(as_list)+1)
+    )
+
+
 def value_of(what):
     """Convert a string, such as True, Yes, ... to its real value."""
     if what in ["TRUE", "True", "Yes", "OK"]:
@@ -203,17 +214,6 @@ def value_of(what):
     except ValueError:
         pass
     return what
-
-
-def powerset(iterable):
-    """
-    Computes the powerset of an iterable.
-    See https://docs.python.org/2/library/itertools.html.
-    """
-    as_list = list(iterable)
-    return itertools.chain.from_iterable(
-        itertools.combinations(as_list, r) for r in range(len(as_list)+1)
-    )
 
 
 def knn_distance(lhs, rhs, bound=2):
@@ -293,11 +293,11 @@ if __name__ == "__main__":
         default=True,
     )
     PARSER.add_argument(
-        "--powerset",
-        help="Compute results for combinations of characteristics",
+        "--useless",
+        help="Compute useless characteristics",
         type=bool,
-        dest="powerset",
-        default=False,
+        dest="useless",
+        default=True,
     )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
@@ -737,17 +737,11 @@ if __name__ == "__main__":
     logging.info(f"Analyzing learned data.")
     analyze_learned()
 
-    def analyze_powerset():
+    def analyze_useless():
         """
-        Analyzes powerset of characteristics.
+        Analyzes useless characteristics.
         """
-        best_score = 0
-        best_algorithm = None
-        for name, score in SCORES.items():
-            if name in ALGORITHMS and score > best_score:
-                best_score = score
-                best_algorithm = name
-        logging.info(f"Using best algorithm {best_algorithm} for powersets.")
+        # Build the dataframe:
         learned = []
         with tqdm(total=len(RESULTS)) as counter:
             for _, entry in RESULTS.items():
@@ -767,21 +761,77 @@ if __name__ == "__main__":
         if not ARGUMENTS.duplicates:
             dataframe = dataframe.drop_duplicates(keep="first")
         logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
-        all_powersets = [x for x in powerset(TO_DROP) if x and len(x) < 4]
         results = {}
-        with tqdm(total=len(all_powersets)) as pcounter:
-            for current_set in all_powersets:
-                to_drop = list(set(TO_DROP) - set(current_set))
-                algorithm = ALGORITHMS[best_algorithm](True)
-                algorithm.fit(
-                    dataframe.drop("Tool", 1).drop(to_drop, 1),
-                    dataframe["Tool"]
-                )
-                results[current_set] = mcc_score(algorithm, to_drop)
-                pcounter.update(1)
-        best_c = sorted(results.items(), key=lambda e: e[1])
-        logging.info(f"Characteristics {best_c[0]} are the best.")
+        # For each algorithm, try to drop each characteristic,
+        # and compare the score with the same with all characteristics:
+        for name, falgorithm in ALGORITHMS.items():
+            useless = {}
+            for characteristic in TO_DROP:
+                useless[characteristic] = True
+            logging.info(f"Analyzing characteristics in algorithm {name}.")
+            results[name] = {}
+            with tqdm(total=len(TO_DROP)) as counter:
+                for to_drop in TO_DROP:
+                    algorithm = falgorithm(True)
+                    algorithm.fit(
+                        dataframe.drop("Tool", 1).drop(to_drop, 1),
+                        dataframe["Tool"]
+                    )
+                    score = mcc_score(algorithm, to_drop)
+                    # If the score has changed,
+                    # the characteristic is not useless:
+                    if score != SCORES[name]:
+                        useless[to_drop] = False
+                    counter.update(1)
+            # The set of potential useless characteristics is obtained:
+            useless = set([x for x, y in useless.items() if y])
+            # If empty, there is no need for further investigation:
+            if useless is None:
+                return
+            logging.info(f"  Some characteristics in {useless} are useless.")
+            all_related = []
+            # Try to find which characteristics are truly useless,
+            # and which ones are linked to others.
+            # To do so, build tuples of n characteristics (n growing from 2),
+            # and try to remove them from the model.
+            for length in range(2, len(useless)):
+                logging.info(f"  Analyzing {length}-tuples characteristics.")
+                sets = [list(x) for x in powerset(useless) if len(x) == length]
+                related = []
+                with tqdm(total=len(sets)) as counter:
+                    for characteristics in sets:
+                        # If a part of the tuple is already linked,
+                        # there is no need for investigation,
+                        # as the result will be linked:
+                        is_interesting = True
+                        for rel in all_related:
+                            if rel < set(characteristics):
+                                is_interesting = False
+                                break
+                        if not is_interesting:
+                            counter.update(1)
+                            continue
+                        algorithm = falgorithm(True)
+                        algorithm.fit(
+                            dataframe.drop("Tool", 1).drop(characteristics, 1),
+                            dataframe["Tool"]
+                        )
+                        score = mcc_score(algorithm, characteristics)
+                        # If the score has changed, the characteristics
+                        # are linked:
+                        if score != SCORES[name]:
+                            related.append(set(characteristics))
+                        counter.update(1)
+                if not related:
+                    break
+                for rel in related:
+                    logging.info(f"  Characteristics {rel} are related.")
+                    all_related.append(rel)
+            # Characteristics that are linked to none are truly useless:
+            for rel in all_related:
+                useless -= rel
+            logging.info(f"  Characteristics {useless} are useless.")
 
-    if ARGUMENTS.powerset and ARGUMENTS.mcc_score:
-        logging.info(f"Analyzing powerset of characteristics.")
-        analyze_powerset()
+    if ARGUMENTS.useless and ARGUMENTS.mcc_score:
+        logging.info(f"Analyzing useless characteristics.")
+        analyze_useless()
