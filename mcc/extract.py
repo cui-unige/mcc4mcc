@@ -327,11 +327,11 @@ if __name__ == "__main__":
             n_estimators=10,
         )
 
+    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
+
     ALGORITHMS["naive-bayes"] = lambda _: GaussianNB()
 
     ALGORITHMS["svm"] = lambda _: SVC()
-
-    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
 
     ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
