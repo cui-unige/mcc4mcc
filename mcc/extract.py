@@ -25,6 +25,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
 
 CHARACTERISTIC_KEYS = [
@@ -75,11 +76,14 @@ RESULT_KEYS = [
 ]
 
 
-class MyAlgo:
+class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
     majority class. There is fit and score methods like in Scikit."""
 
     def __init__(self, class_weight='balanced', n_estimators=30):
+        self.class_weight = class_weight
+        self.n_estimators = n_estimators
+
         self.binary = RandomForestClassifier(
             class_weight=class_weight,
             n_estimators=n_estimators
@@ -98,6 +102,7 @@ class MyAlgo:
         training_x = np.array(training_x)
         training_y = np.array(training_y)
         copy_y = training_y.copy()
+        self.classes = np.unique(training_y)
         # we find the majority class
         self.majority_class = Counter(training_y).most_common()[0][0]
         # create a mask for the binary classification
@@ -128,13 +133,42 @@ class MyAlgo:
             y_pred[mask] = self.multi.predict(test_x[mask])
         return y_pred
 
-    def score(self, test_x, test_y):
+    def score(self, X, y, sample_weight=None):
         """Score function. It computes the accuracy based on given features
         vector and class vector"""
+        X = np.array(X)
+        y = np.array(y)
+        y_pred = self.predict(X)
+        return np.sum(y_pred == y) / y.shape[0]
+
+    def predict_proba(self, test_x):
+        """Predict the probability of each classe to be the good one."""
         test_x = np.array(test_x)
-        test_y = np.array(test_y)
-        y_pred = self.predict(test_x)
-        return np.sum(y_pred == test_y) / test_y.shape[0]
+        mask = self.classes == self.majority_class
+        # multi probability
+        y_pred = self.multi.predict_proba(test_x)
+        # binary probability
+        res_binary = self.binary.predict_proba(test_x)
+        # multiply the binary and the multi on the right place
+        y_pred[:, mask][:, 0] *= res_binary[:, 0]
+        for index, line in enumerate(y_pred[:, ~mask]):
+            y_pred[:, ~mask][index] = line * res_binary[:, 1][index]
+        # return array of probability
+        return y_pred
+
+    def get_params(self, deep=True):
+        """Return a dict with the parameters of the model"""
+        # suppose this estimator has parameters "alpha" and "recursive"
+        return {
+            "class_weight": self.class_weight,
+            "n_estimators": self.n_estimators
+        }
+
+    def set_params(self, **parameters):
+        """Set the parameters of the model"""
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self
 
 
 def translate(what):
@@ -268,30 +302,30 @@ if __name__ == "__main__":
     # Classificator parts:
     # Do not include these algorithms with duplicates,
     # as they are very slow.
-    # if not ARGUMENTS.duplicates:
-    #     ALGORITHMS["knn"] = lambda _: KNeighborsClassifier(
-    #         n_neighbors=10,
-    #         weights="distance",
-    #         metric=knn_distance,
-    #     )
-    #     ALGORITHMS["bagging-knn"] = lambda _: BaggingClassifier(
-    #         KNeighborsClassifier(
-    #             n_neighbors=10,
-    #             weights="distance",
-    #             metric=knn_distance
-    #         ),
-    #         max_samples=0.5,
-    #         max_features=1,
-    #         n_estimators=10,
-    #     )
+    if not ARGUMENTS.duplicates:
+        ALGORITHMS["knn"] = lambda _: KNeighborsClassifier(
+            n_neighbors=10,
+            weights="distance",
+            metric=knn_distance,
+        )
+        ALGORITHMS["bagging-knn"] = lambda _: BaggingClassifier(
+            KNeighborsClassifier(
+                n_neighbors=10,
+                weights="distance",
+                metric=knn_distance
+            ),
+            max_samples=0.5,
+            max_features=1,
+            n_estimators=10,
+        )
 
-    # ALGORITHMS["naive-bayes"] = lambda _: GaussianNB()
+    ALGORITHMS["naive-bayes"] = lambda _: GaussianNB()
 
     ALGORITHMS["svm"] = lambda _: SVC()
 
-    # ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
+    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
 
-    # ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
+    ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
     ALGORITHMS["decision-tree"] = lambda _: DecisionTreeClassifier()
 
@@ -300,9 +334,9 @@ if __name__ == "__main__":
         max_features=None,
     )
 
-    # ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
-    #     solver="lbfgs",
-    # )
+    ALGORITHMS["neural-network"] = lambda _: MLPClassifier(
+        solver="lbfgs",
+    )
 
     # Voting part:
     ALGORITHMS["voting-classifier"] = lambda _: VotingClassifier(
