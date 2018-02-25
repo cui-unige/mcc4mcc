@@ -112,6 +112,7 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
         # apply the mask
         copy_y[mask] = self.majority_class
         copy_y[~mask] = 0
+        self.binary.class_weight = {self.majority_class: 0.95, 0: 0.05}
         # fit the binary classifier if the mask is enough
         if np.any(mask):
             self.binary.fit(training_x, copy_y)
