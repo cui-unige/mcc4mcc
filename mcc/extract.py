@@ -81,19 +81,10 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
     majority class. There is fit and score methods like in Scikit."""
 
-    def __init__(self, class_weight="balanced", n_estimators=30):
-        self.class_weight = class_weight
-        self.n_estimators = n_estimators
+    def __init__(self):
+        self.binary = DecisionTreeClassifier()
 
-        self.binary = RandomForestClassifier(
-            class_weight=class_weight,
-            n_estimators=n_estimators
-        )
-
-        self.multi = RandomForestClassifier(
-            class_weight=class_weight,
-            n_estimators=n_estimators
-        )
+        self.multi = DecisionTreeClassifier()
 
         self.majority_class = None
         self.classes = None
@@ -162,10 +153,7 @@ class MyAlgo(BaseEstimator, ClassifierMixin):
     def get_params(self, deep=True):
         """Return a dict with the parameters of the model"""
         # suppose this estimator has parameters "alpha" and "recursive"
-        return {
-            "class_weight": self.class_weight,
-            "n_estimators": self.n_estimators
-        }
+        return {}
 
     def set_params(self, **parameters):
         """Set the parameters of the model"""
@@ -356,7 +344,7 @@ if __name__ == "__main__":
                 n_estimators=30,
                 max_features=None,
             )),
-            ("svm", SVC(probability=True))
+            ("svm", SVC(probability=True)),
         ],
         voting="soft"
     )
