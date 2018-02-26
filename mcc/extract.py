@@ -8,6 +8,7 @@ and learn from data for approximate algorithm.
 
 import argparse
 import csv
+import itertools
 import json
 import logging
 import os
@@ -74,6 +75,29 @@ RESULT_KEYS = [
     "IO Time",
     "Status",
     "Id",
+]
+
+TO_DROP = [
+    "Ordinary",
+    "Simple Free Choice",
+    "Extended Free Choice",
+    "State Machine",
+    "Marked Graph",
+    "Connected",
+    "Strongly Connected",
+    "Source Place",
+    "Sink Place",
+    "Source Transition",
+    "Sink Transition",
+    "Loop Free",
+    "Conservative",
+    "Sub-Conservative",
+    "Nested Units",
+    "Safe",
+    "Deadlock",
+    "Reversible",
+    "Quasi Live",
+    "Live",
 ]
 
 
@@ -187,6 +211,17 @@ def translate_back(what):
     return None
 
 
+def powerset(iterable):
+    """
+    Computes the powerset of an iterable.
+    See https://docs.python.org/2/library/itertools.html.
+    """
+    as_list = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(as_list, r) for r in range(len(as_list)+1)
+    )
+
+
 def value_of(what):
     """Convert a string, such as True, Yes, ... to its real value."""
     if what in ["TRUE", "True", "Yes", "OK"]:
@@ -283,6 +318,13 @@ if __name__ == "__main__":
         default=True,
     )
     PARSER.add_argument(
+        "--useless",
+        help="Compute useless characteristics",
+        type=bool,
+        dest="useless",
+        default=True,
+    )
+    PARSER.add_argument(
         "--output-dt",
         help="Output the graph of trained decision tree.",
         type=bool,
@@ -317,11 +359,11 @@ if __name__ == "__main__":
             n_estimators=10,
         )
 
+    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
+
     ALGORITHMS["naive-bayes"] = lambda _: GaussianNB()
 
     ALGORITHMS["svm"] = lambda _: SVC()
-
-    ALGORITHMS["ada-boost"] = lambda _: AdaBoostClassifier()
 
     ALGORITHMS["linear-svm"] = lambda _: LinearSVC()
 
@@ -587,7 +629,17 @@ if __name__ == "__main__":
             return rbest[0]["time"]
         return None
 
-    def mcc_score(alg_or_tool):
+    def max_score():
+        """
+        Computes the maximum score using the rules from the MCC.
+        """
+        score = 0
+        for _, models in KNOWN.items():
+            for _ in models.items():
+                score += 16 + 2 + 2
+        return int(score)
+
+    def mcc_score(alg_or_tool, to_drop=None):
         """
         Computes a score using the rules from the MCC.
         """
@@ -603,9 +655,10 @@ if __name__ == "__main__":
                         test[key] = translate(value)
                     del test["Id"]
                     del test["Parameterised"]
-                    tool = translate_back(
-                        alg_or_tool.predict(pandas.DataFrame([test]))[0]
-                    )
+                    dataframe = pandas.DataFrame([test])
+                    if to_drop is not None:
+                        dataframe = dataframe.drop(to_drop, 1)
+                    tool = translate_back(alg_or_tool.predict(dataframe)[0])
                 subscore = 0
                 for instance, data in instances.items():
                     if instance == "sorted":
@@ -647,6 +700,11 @@ if __name__ == "__main__":
         None: 0,
         True: 1,
     }
+    REMOVE = [
+        "Id", "Model Id", "Instance", "Year",
+        "Memory", "Clock Time",
+        "Parameterised", "Selected", "Surprise"
+    ]
 
     def analyze_learned():
         """
@@ -659,10 +717,7 @@ if __name__ == "__main__":
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in [
-                                "Id", "Model Id", "Instance", "Year",
-                                "Memory", "Clock Time",
-                                "Parameterised", "Selected", "Surprise"] \
+                        if key not in REMOVE \
                                 and key not in TECHNIQUES:
                             characteristics[key] = translate(value)
                     LEARNED.append(characteristics)
@@ -711,16 +766,18 @@ if __name__ == "__main__":
             ALGORITHMS_RESULTS.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
-        for name, score in SCORES.items():
-            if name in TOOLS:
-                logging.info(f"Tool {name} has score {score}.")
-            elif name in ALGORITHMS:
-                logging.info(f"Algorithm {name} has score {score}.")
         with open("learned.json", "w") as output:
             json.dump({
                 "algorithms": ALGORITHMS_RESULTS,
                 "translation": translate.ITEMS,
             }, output)
+        if ARGUMENTS.mcc_score:
+            logging.info(f"Maximum score is {max_score()}.")
+            for name, score in SCORES.items():
+                if name in TOOLS:
+                    logging.info(f"Tool {name} has score {score}.")
+                elif name in ALGORITHMS:
+                    logging.info(f"Algorithm {name} has score {score}.")
 
         if ARGUMENTS.output_dt:
             if "decision-tree" in ALGORITHMS:
@@ -735,3 +792,100 @@ if __name__ == "__main__":
 
     logging.info(f"Analyzing learned data.")
     analyze_learned()
+
+    def analyze_useless():
+        """
+        Analyzes useless characteristics.
+        """
+        # Build the dataframe:
+        learned = []
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+                        and "Selected" in entry \
+                        and entry["Selected"]:
+                    characteristics = {}
+                    for key, value in entry.items():
+                        if key not in REMOVE \
+                                and key not in TECHNIQUES:
+                            characteristics[key] = translate(value)
+                    learned.append(characteristics)
+                counter.update(1)
+        # Convert this dict into dataframe:
+        dataframe = pandas.DataFrame(learned)
+        # Remove duplicate entries if required:
+        if not ARGUMENTS.duplicates:
+            dataframe = dataframe.drop_duplicates(keep="first")
+        logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
+        results = {}
+        # For each algorithm, try to drop each characteristic,
+        # and compare the score with the same with all characteristics:
+        for name, falgorithm in ALGORITHMS.items():
+            useless = {}
+            for characteristic in TO_DROP:
+                useless[characteristic] = True
+            logging.info(f"Analyzing characteristics in algorithm {name}.")
+            results[name] = {}
+            with tqdm(total=len(TO_DROP)) as counter:
+                for to_drop in TO_DROP:
+                    algorithm = falgorithm(True)
+                    algorithm.fit(
+                        dataframe.drop("Tool", 1).drop(to_drop, 1),
+                        dataframe["Tool"]
+                    )
+                    score = mcc_score(algorithm, to_drop)
+                    # If the score has changed,
+                    # the characteristic is not useless:
+                    if score != SCORES[name]:
+                        useless[to_drop] = False
+                    counter.update(1)
+            # The set of potential useless characteristics is obtained:
+            useless = set([x for x, y in useless.items() if y])
+            # If empty, there is no need for further investigation:
+            if useless is None:
+                return
+            logging.info(f"  Some characteristics in {useless} are useless.")
+            all_related = []
+            # Try to find which characteristics are truly useless,
+            # and which ones are linked to others.
+            # To do so, build tuples of n characteristics (n growing from 2),
+            # and try to remove them from the model.
+            for length in range(2, len(useless)):
+                sets = [list(x) for x in powerset(useless) if len(x) == length]
+                related = []
+                with tqdm(total=len(sets)) as counter:
+                    for characteristics in sets:
+                        # If a part of the tuple is already linked,
+                        # there is no need for investigation,
+                        # as the result will be linked:
+                        is_interesting = True
+                        for rel in all_related:
+                            if rel < set(characteristics):
+                                is_interesting = False
+                                break
+                        if is_interesting:
+                            algorithm = falgorithm(True)
+                            algorithm.fit(
+                                dataframe.drop("Tool", 1)
+                                .drop(characteristics, 1),
+                                dataframe["Tool"]
+                            )
+                            score = mcc_score(algorithm, characteristics)
+                            # If the score has changed, the characteristics
+                            # are linked:
+                            if score != SCORES[name]:
+                                related.append(set(characteristics))
+                        counter.update(1)
+                if not related:
+                    break
+                for rel in related:
+                    logging.info(f"  Characteristics {rel} are related.")
+                    all_related.append(rel)
+            # Characteristics that are linked to none are truly useless:
+            for rel in all_related:
+                useless -= rel
+            logging.info(f"  Characteristics {useless} are useless.")
+
+    if ARGUMENTS.useless and ARGUMENTS.mcc_score:
+        logging.info(f"Analyzing useless characteristics.")
+        analyze_useless()
