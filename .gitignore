@@ -104,15 +104,17 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-
 # Generated files for machine learning:
 *.p
 mcc/known.json
 mcc/learned.json
 
 # Virtual images:
+*.vmdk.bz2
 *.vmdk
 *.vdi
+*.img
+from-vm/
 
 # Mac OS:
 .DS_Store
