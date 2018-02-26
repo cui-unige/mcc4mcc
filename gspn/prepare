@@ -1,17 +1,9 @@
 #! /usr/bin/env bash
 
 set -e
-set -x
 
 name="gspn2017"
 port=${1:-2222}
-
-# Download virtual machine:
-if [ ! -f "${name}.vmdk.bz2" ]
-then
-  curl -L https://mcc.lip6.fr/2017/archives/gspn2017.vmdk.bz2 \
-    --output ${name}.vmdk.bz2
-fi
 
 # Clean:
 VBoxManage controlvm "${name}" \
@@ -21,11 +13,11 @@ VBoxManage unregistervm "${name}" \
   --delete \
   || true
 
-# Extract virtual machine:
-if [ ! -f "${name}.vmdk" ]
-then
-  tar xf ${name}.vmdk.bz2
-fi
+# Download virtual machine:
+rm -f "${name}.vmdk*"
+curl -L https://mcc.lip6.fr/2017/archives/gspn2017.vmdk.bz2 \
+  --output ${name}.vmdk.bz2
+tar xf ${name}.vmdk.bz2
 
 # Launch the virtual machine:
 VBoxManage createvm \
@@ -70,3 +62,4 @@ VBoxManage controlvm "${name}" \
   poweroff
 VBoxManage unregistervm "${name}" \
   --delete
+rm -f "${name}.vmdk*"
