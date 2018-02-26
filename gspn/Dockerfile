@@ -1,13 +1,11 @@
 FROM debian:stable-slim
 
-COPY from-vm/ /tmp/from-vm
+COPY from-vm/local/include/*  /usr/local/include/
+COPY from-vm/local/lib/*      /usr/local/lib/
+COPY from-vm/local/GreatSPN/* /usr/local/GreatSPN/
+COPY from-vm/MccCtlConv.jar   /usr/local/GreatSPN/bin/
 
 RUN true \
- && mv /tmp/from-vm/local/include/* /usr/local/include/ \
- && mv /tmp/from-vm/local/lib/*     /usr/local/lib/ \
- && mv /tmp/from-vm/local/GreatSPN  /usr/local/ \
- && mv /tmp/from-vm/MccCtlConv.jar  /usr/local/GreatSPN/bin/ \
- && rm -rf /tmp/from-vm \
  && mkdir -p /usr/share/man/man1/ \
  && apt-get update \
  && apt-get install \
