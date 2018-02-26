@@ -39,9 +39,9 @@ RUN true \
  && apk del .build-deps \
  && true
 
-COPY mcc-head /usr/local/bin/
-COPY Makefile /usr/local/share/lola/
+COPY mcc-head         /usr/local/bin/
+COPY from-vm/Makefile /usr/local/share/lola/
 
-VOLUME [ "/mcc-data" ]
+VOLUME     [ "/mcc-data" ]
 ENTRYPOINT [ "mcc-head" ]
-CMD [ "--help" ]
+CMD        [ "--help" ]

@@ -1,1 +1,3 @@
-BenchKit/
+*.img
+*.vmdk
+*.vmdk.bz2
