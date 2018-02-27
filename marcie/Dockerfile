@@ -1,7 +1,5 @@
 FROM alpine
 
-COPY mcc-head /usr/local/bin/
-
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         curl \
@@ -13,8 +11,11 @@ RUN true \
             -C /usr/local/ \
             --strip-components=1 \
     && rm marcie.tar.gz \
+ && apk del .build-deps \
  && true
 
-VOLUME [ "/mcc-data" ]
+COPY mcc-head /usr/local/bin/
+
+VOLUME     [ "/mcc-data" ]
 ENTRYPOINT [ "mcc-head" ]
-CMD [ "--help" ]
+CMD        [ "--help" ]
