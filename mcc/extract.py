@@ -100,6 +100,13 @@ TO_DROP = [
     "Live",
 ]
 
+TOOLS_RENAME = {
+    "tapaalPAR": "tapaal",
+    "tapaalSEQ": "tapaal",
+    "tapaalEXP": "tapaal",
+    "sift": "tina",
+    "tedd": "tina",
+}
 
 class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
@@ -322,7 +329,7 @@ if __name__ == "__main__":
         help="Compute useless characteristics",
         type=bool,
         dest="useless",
-        default=True,
+        default=False,
     )
     PARSER.add_argument(
         "--output-dt",
@@ -493,6 +500,19 @@ if __name__ == "__main__":
                 counter.update(1)
     logging.info(f"Setting all techniques to Boolean values.")
     set_techniques()
+
+    def rename_tools():
+        """
+        Rename tools that are duplicated.
+        """
+        with tqdm(total=len(RESULTS)) as counter:
+            for _, entry in RESULTS.items():
+                name = entry["Tool"]
+                if name in TOOLS_RENAME:
+                    entry["Tool"] = TOOLS_RENAME[name]
+                counter.update(1)
+    logging.info(f"Renaming tools.")
+    rename_tools()
 
     SIZE = len(RESULTS)
     DATA = {}
