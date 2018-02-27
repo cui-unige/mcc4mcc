@@ -9,23 +9,18 @@ RUN true \
  && apk add --no-cache \
         bash \
         boost-program_options \
-        boost-coroutine \
         python3 \
         libstdc++ \
  && git clone --depth=1 https://github.com/ahamez/libsdd.git \
-    && mkdir -p libsdd/_build \
-    && cd libsdd/_build \
+    && cp -r libsdd/sdd /usr/include/ \
+    && rm -rf libsdd \
+ && git clone --depth=1 https://github.com/ahamez/caesar.sdd.git \
+    && mkdir -p caesar.sdd/_build \
+    && cd caesar.sdd/_build \
     && cmake .. \
     && make install \
     && cd ../.. \
-    && rm -rf libsdd \
- # && git clone --depth=1 https://github.com/ahamez/caesar.sdd.git \
- #    && mkdir -p caesar.sdd/_build \
- #    && cd caesar.sdd/_build \
- #    && cmake .. \
- #    && make install \
- #    && cd ../.. \
- #    && rm -rf caesar.sdd \
+    && rm -rf caesar.sdd \
  && git clone --depth=1 https://github.com/ahamez/pnmc.git \
     && mkdir -p pnmc/_build \
     && cd pnmc/_build \
@@ -41,8 +36,7 @@ COPY nupn.py /usr/local/bin/nupn.py
 COPY pnmc.py /usr/local/bin/pnmc.py
 COPY pnmc.py /usr/local/bin/mcc-head
 
-RUN du -sh /usr/include/*
-
-VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "mcc-head" ]
-CMD [ "--help" ]
+WORKDIR    /mcc-data
+VOLUME     [ "/mcc-data" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

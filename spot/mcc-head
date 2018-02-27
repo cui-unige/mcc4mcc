@@ -1,0 +1,3 @@
+#!/bin/bash
+
+/usr/local/share/its-tools/pnmcc/fr.lip6.move.gal.benchmark/run_gal2c.sh "$BK_INPUT" "$BK_EXAMINATION"

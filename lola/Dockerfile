@@ -42,6 +42,7 @@ RUN true \
 COPY mcc-head         /usr/local/bin/
 COPY from-vm/Makefile /usr/local/share/lola/
 
+WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
-ENTRYPOINT [ "mcc-head" ]
-CMD        [ "--help" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

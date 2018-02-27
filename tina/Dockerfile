@@ -43,3 +43,11 @@ RUN true \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
  && true
+
+COPY from-vm/net /usr/local/tina/net
+COPY mcc-head    /usr/local/bin/
+
+WORKDIR    /mcc-data
+VOLUME     [ "/mcc-data" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

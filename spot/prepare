@@ -1,0 +1,57 @@
+#! /usr/bin/env bash
+
+set -e
+
+name="spot2017"
+port=${1:-2222}
+
+# Clean:
+VBoxManage controlvm "${name}" \
+  poweroff \
+  || true
+VBoxManage unregistervm "${name}" \
+  --delete \
+  || true
+
+# Download virtual machine:
+rm -f "${name}.vmdk*"
+curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
+  --output ${name}.vmdk.bz2
+tar xf ${name}.vmdk.bz2
+
+# Launch the virtual machine:
+VBoxManage createvm \
+  --name "${name}" \
+  --ostype "Debian_64" \
+  --register
+VBoxManage storagectl "${name}" \
+  --name "IDE Controller" \
+  --add "ide" \
+  --bootable "on"
+VBoxManage modifyvm "${name}" \
+  --description "${name} for mcc4mcc" \
+  --memory 8192 \
+  --cpus 4 \
+  --hda "${name}.vmdk" \
+  --natpf1 ssh,tcp,,${port},,22
+VBoxManage startvm "${name}" \
+  --type "headless"
+
+# Copy files from the virtual machine:
+rm -rf from-vm/
+mkdir -p from-vm/
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "../ToolSubmissionKit/bk-private_key" \
+  -P "${port}" \
+  mcc@localhost:/home/mcc/ITSTools \
+  from-vm/its-tools
+
+# Clean:
+VBoxManage controlvm "${name}" \
+  poweroff
+VBoxManage unregistervm "${name}" \
+  --delete
+rm -f "${name}.vmdk*"

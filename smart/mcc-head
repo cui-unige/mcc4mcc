@@ -1,0 +1,54 @@
+#! /usr/bin/env bash
+
+set -x
+
+case "$BK_EXAMINATION" in
+
+	StateSpace)
+    INPUT_PNML=model.pnml
+    INPUT_SM=model.sm
+    IS_COLORED=iscolored
+
+    if [[ `grep TRUE $IS_COLORED` ]]
+    then
+      echo "DO_NOT_COMPETE"
+    else
+      MODEL_NAME=$(echo "$BK_INPUT" | cut -d '-' -f 1)
+      MODEL_TYPE=$(echo "$BK_INPUT "| cut -d '-' -f 2)
+      MODEL_INST=$(echo "$BK_INPUT" | cut -d '-' -f 3)
+
+      echo "======================================================"
+      echo "========== this is Smart for the MCC'2017 ============"
+      echo "======================================================"
+      echo "Runing $MODEL_NAME ($MODEL_TYPE), instance $MODEL_INST"
+      echo
+
+      if [ ! -e ${INPUT_SM} ]; then
+        java -classpath /usr/local/share/smart CleanParse "${INPUT_PNML}"
+      fi
+      smart "${INPUT_SM}"
+      rm "${INPUT_SM}"
+    fi
+		;;
+
+	UpperBounds)
+		echo "DO_NOT_COMPETE"
+		;;
+
+	Reachability*)
+		echo "DO_NOT_COMPETE"
+		;;
+
+	LTL*)
+		echo "DO_NOT_COMPETE"
+		;;
+
+	CTL*)
+		echo "DO_NOT_COMPETE"
+		;;
+
+	*)
+		echo "$0: Wrong invocation:" >> $BK_LOG_FILE
+		exit 1
+		;;
+esac

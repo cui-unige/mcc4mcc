@@ -28,6 +28,7 @@ RUN true \
 
 COPY mcc-head /usr/local/bin/
 
+WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
-ENTRYPOINT [ "mcc-head" ]
-CMD        [ "--help" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

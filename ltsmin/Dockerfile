@@ -1,7 +1,6 @@
 FROM alpine
 
-COPY mcc-head      /usr/local/bin/
-COPY formulizer.py /usr/local/bin/
+COPY from-vm/formulizer.py /usr/local/bin/
 
 RUN true \
  && echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing" \
@@ -33,6 +32,9 @@ RUN true \
  && apk del .build-deps \
  && true
 
-VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "mcc-head" ]
-CMD [ "--help" ]
+COPY mcc-head /usr/local/bin/
+
+WORKDIR    /mcc-data
+VOLUME     [ "/mcc-data" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

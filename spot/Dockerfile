@@ -1,5 +1,7 @@
 FROM alpine
 
+COPY from-vm/its-tools /usr/local/share/its-tools
+
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         autoconf \
@@ -20,10 +22,13 @@ RUN true \
     && ./configure \
     && make install \
     && cd .. \
-    && rm -rf spot-2.4.2 \
+    && rm -rf spot-2.4.2* \
  && apk del .build-deps \
  && true
 
-VOLUME [ "/mcc-data" ]
-ENTRYPOINT [ "spot" ]
-CMD [ "--help" ]
+COPY mcc-head /usr/local/bin
+
+WORKDIR    /mcc-data
+VOLUME     [ "/mcc-data" ]
+ENTRYPOINT [ "mcc-head"  ]
+CMD        [ "--help"    ]

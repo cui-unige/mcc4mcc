@@ -1,0 +1,9 @@
+#! /usr/bin/env bash
+
+java -Xss8m \
+     -Xms40m \
+     -Xmx8192m \
+     -Dfile.encoding=UTF-8 \
+     -classpath /usr/local/share/stratagem/*.jar \
+     ch.unige.cui.smv.stratagem.modelchecker.Main \
+     $*
