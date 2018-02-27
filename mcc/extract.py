@@ -108,6 +108,7 @@ TOOLS_RENAME = {
     "tedd": "tina",
 }
 
+
 class MyAlgo(BaseEstimator, ClassifierMixin):
     """Custom classification algorithm. It can be choice when there is a big
     majority class. There is fit and score methods like in Scikit."""
