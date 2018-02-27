@@ -99,19 +99,26 @@ scp \
   mcc@localhost:BenchKit/
 
 # Install docker images:
-for tool in lola \
+for tool in gspn \
+            itstools \
+            lola \
             ltsmin \
             marcie \
-            tina \
-            sift \
-            tedd \
-            tapaal
+            pnmc \
+            smat \
+            spot \
+            stratagem \
+            tapaal \
+            tina
 do
   if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
   then
     echo "${tool}" >> "${temporary}/images"
-    # sem --jobs -4 "cd ${tool}; \
     ( cd "${tool}"
+      if [ -x prepare ]
+      then
+        ./prepare
+      fi
       docker build \
              --tag="mccpetrinets/${tool}" \
              --force-rm \
@@ -121,7 +128,6 @@ do
     ) || exit 1
   fi
 done
-# sem --wait
 scp \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
@@ -148,6 +154,7 @@ for image in $(cat images)
 do
   docker pull ${image}
 done
+rm -f images
 EOS
 set +x
 
