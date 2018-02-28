@@ -303,7 +303,7 @@ if __name__ == "__main__":
         help="Number of iterations",
         type=int,
         dest="iterations",
-        default=10,
+        default=0,
     )
     PARSER.add_argument(
         "--distance",
@@ -664,8 +664,9 @@ if __name__ == "__main__":
         """
         Computes a score using the rules from the MCC.
         """
-        score = 0
+        score = {}
         for examination, models in KNOWN.items():
+            score[examination] = 0
             for model, instances in models.items():
                 if alg_or_tool in TOOLS:
                     tool = alg_or_tool
@@ -693,11 +694,13 @@ if __name__ == "__main__":
                             (2 if entry["time"] == bestt else 0) + \
                             (2 if entry["memory"] == bestm else 0)
                         break
-                score = (
-                    score +
-                    subscore / (len(instances)-1)
-                )
-        return int(score)
+                score[examination] += subscore / (len(instances)-1)
+        full_score = 0
+        for examination, value in score.items():
+            full_score += value
+            score[examination] = int(value)
+        score["Total"] = int(full_score)
+        return score
 
     SCORES = {}
 
@@ -754,7 +757,9 @@ if __name__ == "__main__":
         for name, falgorithm in ALGORITHMS.items():
             subresults = []
             logging.info(f"Learning using algorithm: '{name}'.")
-            alg_results = {}
+            alg_results = {
+                "algorithm": name,
+            }
             if ARGUMENTS.iterations > 0:
                 for _ in tqdm(range(ARGUMENTS.iterations)):
                     train, test = train_test_split(dataframe)
@@ -766,13 +771,10 @@ if __name__ == "__main__":
                     algorithm = falgorithm(True)
                     algorithm.fit(training_x, training_y)
                     subresults.append(algorithm.score(test_x, test_y))
-                alg_results = {
-                    "algorithm": name,
-                    "min": min(subresults),
-                    "max": max(subresults),
-                    "mean": statistics.mean(subresults),
-                    "median": statistics.median(subresults),
-                }
+                alg_results["min"] = min(subresults)
+                alg_results["max"] = max(subresults)
+                alg_results["mean"] = statistics.mean(subresults)
+                alg_results["median"] = statistics.median(subresults)
                 logging.info(f"Algorithm: {name}")
                 logging.info(f"  Min     : {min                (subresults)}")
                 logging.info(f"  Max     : {max                (subresults)}")
@@ -782,8 +784,10 @@ if __name__ == "__main__":
             algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
             if ARGUMENTS.mcc_score:
                 SCORES[name] = mcc_score(algorithm)
-                alg_results["score"] = SCORES[name]
-                logging.info(f"  Score   : {SCORES[name]}")
+                for key, value in SCORES[name].items():
+                    alg_results[key] = value
+                total = SCORES[name]["Total"]
+                logging.info(f"  Score   : {total}")
             ALGORITHMS_RESULTS.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
@@ -794,12 +798,22 @@ if __name__ == "__main__":
             }, output)
         if ARGUMENTS.mcc_score:
             logging.info(f"Maximum score is {max_score()}.")
+            srt = []
             for name, score in SCORES.items():
-                if name in TOOLS:
-                    logging.info(f"Tool {name} has score {score}.")
-                elif name in ALGORITHMS:
-                    logging.info(f"Algorithm {name} has score {score}.")
-
+                for examination, value in score.items():
+                    srt.append({
+                        "name": name,
+                        "examination": examination,
+                        "score": value,
+                    })
+            srt = sorted(srt, key=lambda e: (
+                e["examination"], e["score"], e["name"]
+            ), reverse=True)
+            for element in srt:
+                examination = element["examination"]
+                score = element["score"]
+                name = element["name"]
+                logging.info(f"In {examination} : {score} for {name}.")
         if ARGUMENTS.output_dt:
             if "decision-tree" in ALGORITHMS:
                 tree.export_graphviz(
