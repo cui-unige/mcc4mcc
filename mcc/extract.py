@@ -303,7 +303,7 @@ if __name__ == "__main__":
         help="Number of iterations",
         type=int,
         dest="iterations",
-        default=10,
+        default=0,
     )
     PARSER.add_argument(
         "--distance",
