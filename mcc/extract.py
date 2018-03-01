@@ -319,10 +319,17 @@ if __name__ == "__main__":
         default=False,
     )
     PARSER.add_argument(
-        "--score",
+        "--compute-score",
         help="Compute score in the Model Checking Contest",
         type=bool,
         dest="mcc_score",
+        default=True,
+    )
+    PARSER.add_argument(
+        "--compute-distance",
+        help="Compute distance in the Model Checking Contest",
+        type=bool,
+        dest="mcc_distance",
         default=True,
     )
     PARSER.add_argument(
@@ -636,6 +643,20 @@ if __name__ == "__main__":
     logging.info(f"Analyzing known data.")
     analyze_known()
 
+    def count_instances():
+        """
+        Computes the number of instances.
+        """
+        result = 0
+        for _, models in KNOWN.items():
+            for _, instances in models.items():
+                for instance, _ in instances.items():
+                    if instance == "sorted":
+                        continue
+                    result += 1
+        return result
+    NB_INSTANCES = count_instances()
+
     MAX_SCORE = 16 + 2 + 2
 
     def best_time_of(sequence, seq_key):
@@ -665,36 +686,42 @@ if __name__ == "__main__":
         Computes a score using the rules from the MCC.
         """
         score = {}
-        for examination, models in KNOWN.items():
-            score[examination] = 0
-            for model, instances in models.items():
-                if alg_or_tool in TOOLS:
-                    tool = alg_or_tool
-                else:
-                    test = {}
-                    test["Examination"] = translate(examination)
-                    for key, value in CHARACTERISTICS[model].items():
-                        test[key] = translate(value)
-                    del test["Id"]
-                    del test["Parameterised"]
-                    dataframe = pandas.DataFrame([test])
-                    if to_drop is not None:
-                        dataframe = dataframe.drop(to_drop, 1)
-                    tool = translate_back(alg_or_tool.predict(dataframe)[0])
-                subscore = 0
-                for instance, data in instances.items():
-                    if instance == "sorted":
-                        continue
-                    for entry in data["sorted"]:
-                        if entry["tool"] != tool:
+        if isinstance(alg_or_tool, str):
+            logging.info(f"Computing score for {alg_or_tool}.")
+        else:
+            logging.info(f"Computing score.")
+        with tqdm(total=NB_INSTANCES) as counter:
+            for examination, models in KNOWN.items():
+                score[examination] = 0
+                for model, instances in models.items():
+                    if alg_or_tool in TOOLS:
+                        tool = alg_or_tool
+                    else:
+                        test = {}
+                        test["Examination"] = translate(examination)
+                        for key, value in CHARACTERISTICS[model].items():
+                            test[key] = translate(value)
+                        del test["Id"]
+                        del test["Parameterised"]
+                        dtf = pandas.DataFrame([test])
+                        if to_drop is not None:
+                            dtf = dtf.drop(to_drop, 1)
+                        tool = translate_back(alg_or_tool.predict(dtf)[0])
+                    subscore = 0
+                    for instance, data in instances.items():
+                        if instance == "sorted":
                             continue
-                        bestt = best_time_of(data["sorted"], "time")
-                        bestm = best_time_of(data["sorted"], "memory")
-                        subscore += 16 + \
-                            (2 if entry["time"] == bestt else 0) + \
-                            (2 if entry["memory"] == bestm else 0)
-                        break
-                score[examination] += subscore / (len(instances)-1)
+                        for entry in data["sorted"]:
+                            if entry["tool"] != tool:
+                                continue
+                            bestt = best_time_of(data["sorted"], "time")
+                            bestm = best_time_of(data["sorted"], "memory")
+                            subscore += 16 + \
+                                (2 if entry["time"] == bestt else 0) + \
+                                (2 if entry["memory"] == bestm else 0)
+                            break
+                        counter.update(1)
+                    score[examination] += subscore / (len(instances)-1)
         full_score = 0
         for examination, value in score.items():
             full_score += value
@@ -708,14 +735,71 @@ if __name__ == "__main__":
         """
         Computes the scores of all tools.
         """
-        with tqdm(total=len(TOOLS)) as counter:
-            for tool in TOOLS:
-                SCORES[tool] = mcc_score(tool)
-                counter.update(1)
+        for tool in TOOLS:
+            SCORES[tool] = mcc_score(tool)
 
     if ARGUMENTS.mcc_score:
-        logging.info(f"Computing scores.")
         compute_scores()
+
+    def mcc_distance(alg_or_tool, to_drop=None):
+        """
+        Computes a distance between a tool or an algorithm to the best results.
+        """
+        score = {}
+        if isinstance(alg_or_tool, str):
+            logging.info(f"Computing distance for {alg_or_tool}.")
+        else:
+            logging.info(f"Computing distance.")
+        with tqdm(total=NB_INSTANCES) as counter:
+            for examination, models in KNOWN.items():
+                score[examination] = {
+                    "time": [],
+                    "memory": [],
+                }
+                current = score[examination]
+                for model, instances in models.items():
+                    if alg_or_tool in TOOLS:
+                        tool = alg_or_tool
+                    else:
+                        test = {}
+                        test["Examination"] = translate(examination)
+                        for key, value in CHARACTERISTICS[model].items():
+                            test[key] = translate(value)
+                        del test["Id"]
+                        del test["Parameterised"]
+                        dtf = pandas.DataFrame([test])
+                        if to_drop is not None:
+                            dtf = dtf.drop(to_drop, 1)
+                        tool = translate_back(alg_or_tool.predict(dtf)[0])
+                    for instance, data in instances.items():
+                        if instance == "sorted":
+                            continue
+                        if data["sorted"]:
+                            best = data["sorted"][0]
+                        for entry in data["sorted"]:
+                            if entry["tool"] != tool:
+                                continue
+                            for key in ["time", "memory"]:
+                                current[key].append(entry[key]/best[key])
+                            break
+                        counter.update(1)
+        for examination, data in score.items():
+            for key in ["time", "memory"]:
+                if data[key]:
+                    data[key] = statistics.mean(data[key])
+        return score
+
+    DISTANCES = {}
+
+    def compute_distances():
+        """
+        Computes the distances of all tools.
+        """
+        for tool in TOOLS:
+            DISTANCES[tool] = mcc_distance(tool)
+
+    if ARGUMENTS.mcc_distance:
+        compute_distances()
 
     LEARNED = []
     ALGORITHMS_RESULTS = []
@@ -786,8 +870,8 @@ if __name__ == "__main__":
                 SCORES[name] = mcc_score(algorithm)
                 for key, value in SCORES[name].items():
                     alg_results[key] = value
-                total = SCORES[name]["Total"]
-                logging.info(f"  Score   : {total}")
+            if ARGUMENTS.mcc_distance:
+                DISTANCES[name] = mcc_distance(algorithm)
             ALGORITHMS_RESULTS.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
@@ -797,7 +881,8 @@ if __name__ == "__main__":
                 "translation": translate.ITEMS,
             }, output)
         if ARGUMENTS.mcc_score:
-            logging.info(f"Maximum score is {max_score()}.")
+            logging.info(f"Analyzing scores:")
+            logging.info(f"  Maximum score is {max_score()}.")
             srt = []
             for name, score in SCORES.items():
                 for examination, value in score.items():
@@ -806,14 +891,50 @@ if __name__ == "__main__":
                         "examination": examination,
                         "score": value,
                     })
+            # Show the total first:
             srt = sorted(srt, key=lambda e: (
                 e["examination"], e["score"], e["name"]
             ), reverse=True)
-            for element in srt:
+            for element in [x for x in srt if x["examination"] == "Total"]:
+                score = element["score"]
+                name = element["name"]
+                logging.info(f"  Overall score: {score} for {name}.")
+            for element in [x for x in srt if x["examination"] != "Total"]:
                 examination = element["examination"]
                 score = element["score"]
                 name = element["name"]
-                logging.info(f"In {examination} : {score} for {name}.")
+                logging.info(f"  In {examination}: {score} for {name}.")
+        if ARGUMENTS.mcc_distance:
+            logging.info(f"Analyzing distances:")
+            for key in ["time"]:  # Can add memory
+                srt = []
+                best = {}
+                examinations = {}
+                for name, distances in DISTANCES.items():
+                    for examination, value in distances.items():
+                        examinations[examination] = True
+                        if value[key]:
+                            srt.append({
+                                "name": name,
+                                "examination": examination,
+                                "distance": value[key],
+                            })
+                for examination, _ in examinations.items():
+                    subsrt = [
+                        x for x in srt if x["examination"] == examination
+                    ]
+                    subsrt = sorted(subsrt, key=lambda e: (
+                        e["examination"], e["distance"], e["name"]
+                    ), reverse=False)
+                    best[examination] = subsrt[0]
+                srt = sorted(srt, key=lambda e: (
+                    e["examination"], e["distance"], e["name"]
+                ), reverse=False)
+                for element in srt:
+                    exa = element["examination"]
+                    dst = element["distance"] / best[exa]["distance"]
+                    name = element["name"]
+                    logging.info(f"  In {exa} : {dst} ({key}) for {name}.")
         if ARGUMENTS.output_dt:
             if "decision-tree" in ALGORITHMS:
                 tree.export_graphviz(
