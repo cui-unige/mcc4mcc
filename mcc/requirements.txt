@@ -5,3 +5,5 @@ tqdm
 scikit_learn
 pycodestyle
 pylint
+docker
+readline
