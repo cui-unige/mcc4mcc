@@ -1,9 +1,9 @@
 FROM debian:stable-slim
 
-COPY from-vm/local/include/*  /usr/local/include/
-COPY from-vm/local/lib/*      /usr/local/lib/
-COPY from-vm/local/GreatSPN/* /usr/local/GreatSPN/
-COPY from-vm/MccCtlConv.jar   /usr/local/GreatSPN/bin/
+COPY from-vm/local/include/*  /usr/include/
+COPY from-vm/local/lib/*      /usr/lib/
+COPY from-vm/local/GreatSPN/* /usr/share/GreatSPN/
+COPY from-vm/MccCtlConv.jar   /usr/share/GreatSPN/
 
 RUN true \
  && mkdir -p /usr/share/man/man1/ \
@@ -24,7 +24,7 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
-COPY mcc-head /usr/local/bin/
+COPY mcc-head /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]

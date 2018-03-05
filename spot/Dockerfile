@@ -1,6 +1,6 @@
 FROM alpine
 
-COPY from-vm/its-tools /usr/local/share/its-tools
+COPY from-vm/its-tools /usr/share/its-tools
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -19,14 +19,14 @@ RUN true \
     && tar xf spot-2.4.2.tar.gz \
     && cd spot-2.4.2 \
     && sed -i".bak" "s/secure_getenv/getenv/g" spot/misc/tmpfile.cc \
-    && ./configure \
+    && ./configure --prefix=/usr \
     && make install \
     && cd .. \
     && rm -rf spot-2.4.2* \
  && apk del .build-deps \
  && true
 
-COPY mcc-head /usr/local/bin
+COPY mcc-head /usr/bin
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
