@@ -7,12 +7,10 @@ and learn from data for approximate algorithm.
 """
 
 import argparse
-import csv
 import itertools
 import json
 import logging
 import os
-import re
 import statistics
 import pickle
 import pandas
@@ -21,6 +19,9 @@ from sklearn.model_selection import train_test_split
 from sklearn import tree
 from ml_algorithm import init_algorithms
 from global_variables import GlobalVariales
+from processing import read_characteristics, read_results, set_techniques
+from processing import rename_tools, sort_data, analyze_known
+from score import best_time_of, max_score
 
 
 def translate(what):
@@ -57,25 +58,6 @@ def powerset(iterable):
     return itertools.chain.from_iterable(
         itertools.combinations(as_list, r) for r in range(len(as_list) + 1)
     )
-
-
-def value_of(what):
-    """Convert a string, such as True, Yes, ... to its real value."""
-    if what in ["TRUE", "True", "Yes", "OK"]:
-        return True
-    if what in ["FALSE", "False", "None"]:
-        return False
-    if what == "Unknown":
-        return None
-    try:
-        return int(what)
-    except ValueError:
-        pass
-    try:
-        return float(what)
-    except ValueError:
-        pass
-    return what
 
 
 if __name__ == "__main__":
@@ -157,276 +139,45 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
-    GV = GlobalVariales(ALGORITHMS=init_algorithms(ARGUMENTS))
+    GV = GlobalVariales()
+    GV.ALGORITHMS = init_algorithms(ARGUMENTS)
 
-    def read_characteristics():
-        """
-        Reads the model characteristics.
-        """
-        with tqdm(total=sum(
-            1 for line in open(ARGUMENTS.characteristics)) - 1
-                 ) as counter:
-            with open(ARGUMENTS.characteristics) as data:
-                data.readline()  # skip the title line
-                reader = csv.reader(data)
-                for row in reader:
-                    entry = {}
-                    for i, characteristic in enumerate(GV.CHARACTERISTIC_KEYS):
-                        entry[characteristic] = value_of(row[i])
-                    entry["Place/Transition"] = True if re.search(
-                        "PT", entry["Type"]) else False
-                    entry["Colored"] = True if re.search(
-                        "COLORED", entry["Type"]) else False
-                    del entry["Type"]
-                    del entry["Fixed size"]
-                    del entry["Origin"]
-                    del entry["Submitter"]
-                    del entry["Year"]
-                    GV.CHARACTERISTICS[entry["Id"]] = entry
-                    counter.update(1)
     logging.info(
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
-    read_characteristics()
+    read_characteristics(ARGUMENTS, GV)
 
-    RESULTS = {}
-
-    def read_results():
-        """
-        Reads the results of the model checking contest.
-        """
-        with tqdm(total=sum(1 for line in open(ARGUMENTS.results)) - 1) \
-                as counter:
-            with open(ARGUMENTS.results) as data:
-                data.readline()  # skip the title line
-                reader = csv.reader(data)
-                for row in reader:
-                    entry = {}
-                    for i, result in enumerate(GV.RESULT_KEYS):
-                        entry[result] = value_of(row[i])
-                    if entry["Time OK"] \
-                            and entry["Memory OK"] \
-                            and entry["Status"] == "normal" \
-                            and entry["Results"] not in ["DNC", "DNF", "CC"]:
-                        RESULTS[entry["Id"]] = entry
-                        for technique in re.findall(
-                                r"([A-Z_]+)",
-                                entry["Techniques"]
-                        ):
-                            GV.TECHNIQUES[technique] = True
-                            entry[technique] = True
-                        entry["Surprise"] = True if re.search(
-                            r"^S_", entry["Instance"]) else False
-                        if entry["Surprise"]:
-                            entry["Instance"] = re.search(
-                                r"^S_(.*)$", entry["Instance"]).group(1)
-                        split = re.search(
-                            r"([^-]+)\-([^-]+)\-([^-]+)$", entry["Instance"])
-                        if split is None:
-                            entry["Model Id"] = entry["Instance"]
-                        else:
-                            entry["Model Id"] = split.group(1)
-                        if entry["Model Id"] in GV.CHARACTERISTICS:
-                            model = GV.CHARACTERISTICS[entry["Model Id"]]
-                            for key in model.keys():
-                                if key != "Id":
-                                    entry[key] = model[key]
-                        del entry["Time OK"]
-                        del entry["Memory OK"]
-                        del entry["CPU Time"]
-                        del entry["Cores"]
-                        del entry["IO Time"]
-                        del entry["Results"]
-                        del entry["Status"]
-                        del entry["Techniques"]
-                    counter.update(1)
     logging.info(f"Reading mcc results from '{ARGUMENTS.results}'.")
-    read_results()
+    read_results(ARGUMENTS, GV)
 
-    def set_techniques():
-        """
-        Sets techniques to Boolean values in results.
-        """
-        with tqdm(total=len(RESULTS)) as counter:
-            for _, entry in RESULTS.items():
-                for technique in GV.TECHNIQUES:
-                    if technique not in entry:
-                        entry[technique] = False
-                counter.update(1)
     logging.info(f"Setting all techniques to Boolean values.")
-    set_techniques()
+    set_techniques(GV)
 
-    def rename_tools():
-        """
-        Rename tools that are duplicated.
-        """
-        with tqdm(total=len(RESULTS)) as counter:
-            for _, entry in RESULTS.items():
-                name = entry["Tool"]
-                if name in GV.TOOLS_RENAME:
-                    entry["Tool"] = GV.TOOLS_RENAME[name]
-                counter.update(1)
     logging.info(f"Renaming tools.")
-    rename_tools()
+    rename_tools(GV)
 
-    SIZE = len(RESULTS)
-    DATA = {}
-    TOOL_YEAR = {}
-
-    def sort_data():
-        """
-        Sorts data into tree of examination/model/instance/tool/year/entry.
-        """
-        size = SIZE
-        with tqdm(total=len(RESULTS)) as counter:
-            for _, entry in RESULTS.items():
-                if entry["Tool"] not in GV.TOOLS:
-                    GV.TOOLS[entry["Tool"]] = True
-                if entry["Examination"] not in DATA:
-                    DATA[entry["Examination"]] = {}
-                examination = DATA[entry["Examination"]]
-                if entry["Model Id"] not in examination:
-                    examination[entry["Model Id"]] = {}
-                model = examination[entry["Model Id"]]
-                if entry["Instance"] not in model:
-                    model[entry["Instance"]] = {}
-                instance = model[entry["Instance"]]
-                if entry["Tool"] not in instance:
-                    instance[entry["Tool"]] = {}
-                tool = instance[entry["Tool"]]
-                if entry["Tool"] not in TOOL_YEAR:
-                    TOOL_YEAR[entry["Tool"]] = 0
-                if entry["Year"] > TOOL_YEAR[entry["Tool"]]:
-                    TOOL_YEAR[entry["Tool"]] = entry["Year"]
-                if entry["Year"] in tool:
-                    size -= 1
-                    if entry["Clock Time"] < tool[entry["Year"]]["Clock Time"]:
-                        tool[entry["Year"]] = entry
-                else:
-                    tool[entry["Year"]] = entry
-                counter.update(1)
-        return size
+    GV.SIZE = len(GV.RESULTS)
 
     logging.info(f"Sorting data.")
-    SIZE = sort_data()
-
-    KNOWN = {}
-    DISTANCE = ARGUMENTS.distance
-
-    def analyze_known():
-        """
-        Analyzes known data.
-        """
-        with tqdm(total=SIZE) as counter:
-            for examination, models in DATA.items():
-                KNOWN[examination] = {}
-                known_e = KNOWN[examination]
-                for model, instances in models.items():
-                    known_e[model] = {}
-                    known_m = known_e[model]
-                    subresults = {}
-                    for instance, tools in instances.items():
-                        known_m[instance] = {}
-                        known_i = known_m[instance]
-                        subsubresults = {}
-                        for tool, years in tools.items():
-                            if tool not in subresults:
-                                subresults[tool] = {
-                                    "count": 0,
-                                    "time": 0,
-                                    "memory": 0,
-                                }
-                            for year, entry in years.items():
-                                if year == TOOL_YEAR[tool]:
-                                    subsubresults[tool] = {
-                                        "time": entry["Clock Time"],
-                                        "memory": entry["Memory"],
-                                    }
-                                    subresults[tool]["count"] += 1
-                                    subresults[tool]["time"] += \
-                                        entry["Clock Time"]
-                                    subresults[tool]["memory"] += \
-                                        entry["Memory"]
-                                counter.update(1)
-                        srt = sorted(subsubresults.items(), key=lambda e: (
-                            e[1]["time"], e[1]["memory"]))
-                        # Select only the tools that are within a distance
-                        # from the best:
-                        known_i["sorted"] = [
-                            {"tool": x[0],
-                             "time": x[1]["time"],
-                             "memory": x[1]["memory"]} for x in srt]
-                    srt = sorted(
-                        subresults.items(),
-                        key=lambda e: (
-                            -e[1]["count"],
-                            e[1]["time"],
-                            e[1]["memory"]
-                        )
-                    )
-                    known_m["sorted"] = [
-                        {"tool": x[0],
-                         "count": x[1]["count"],
-                         "time": x[1]["time"],
-                         "memory": x[1]["memory"]} for x in srt]
-                    # Select all tools that reach both the maximum count and
-                    # the expected distance from the best:
-                    if known_m["sorted"]:
-                        best = known_m["sorted"][0]
-                        for x_e in known_m["sorted"]:
-                            if x_e["count"] == best["count"]:
-                                for instance, tools in instances.items():
-                                    tool = x_e["tool"]
-                                    ratio = x_e["time"] / best["time"]
-                                    if tool in tools \
-                                            and TOOL_YEAR[tool] in tools[tool]\
-                                            and (DISTANCE is None
-                                                 or ratio <= (1+DISTANCE)):
-                                        entry = tools[tool][TOOL_YEAR[tool]]
-                                        entry["Selected"] = True
-        with open("known.json", "w") as output:
-            json.dump(KNOWN, output)
+    GV.SIZE = sort_data(GV)
+    GV.DISTANCE = ARGUMENTS.distance
 
     logging.info(f"Analyzing known data.")
-    analyze_known()
+    analyze_known(GV)
 
-    MAX_SCORE = 16 + 2 + 2
-
-    def best_time_of(sequence, seq_key):
-        """
-        Computes the time of the best in sequence, sorted by seq_key.
-        """
-        rbest = sorted(
-            sequence,
-            key=lambda e: e[seq_key]
-        )
-        if rbest:
-            return rbest[0]["time"]
-        return None
-
-    def max_score():
-        """
-        Computes the maximum score using the rules from the MCC.
-        """
-        score = 0
-        for _, models in KNOWN.items():
-            for _ in models.items():
-                score += 16 + 2 + 2
-        return int(score)
-
-    def mcc_score(alg_or_tool, to_drop=None):
+    def mcc_score(alg_or_tool, g_v, to_drop=None):
         """
         Computes a score using the rules from the MCC.
         """
         score = {}
-        for examination, models in KNOWN.items():
+        for examination, models in g_v.KNOWN.items():
             score[examination] = 0
             for model, instances in models.items():
-                if alg_or_tool in GV.TOOLS:
+                if alg_or_tool in g_v.TOOLS:
                     tool = alg_or_tool
                 else:
                     test = {}
                     test["Examination"] = translate(examination)
-                    for key, value in GV.CHARACTERISTICS[model].items():
+                    for key, value in g_v.CHARACTERISTICS[model].items():
                         test[key] = translate(value)
                     del test["Id"]
                     del test["Parameterised"]
@@ -455,53 +206,44 @@ if __name__ == "__main__":
         score["Total"] = int(full_score)
         return score
 
-    SCORES = {}
-
-    def compute_scores():
+    def compute_scores(g_v):
         """
         Computes the scores of all tools.
         """
-        with tqdm(total=len(GV.TOOLS)) as counter:
+        with tqdm(total=len(g_v.TOOLS)) as counter:
             for tool in GV.TOOLS:
-                SCORES[tool] = mcc_score(tool)
+                g_v.SCORES[tool] = mcc_score(tool, g_v)
                 counter.update(1)
 
     if ARGUMENTS.mcc_score:
         logging.info(f"Computing scores.")
-        compute_scores()
+        compute_scores(GV)
 
-    LEARNED = []
-    ALGORITHMS_RESULTS = []
     translate.ITEMS = {
         False: -1,
         None: 0,
         True: 1,
     }
-    REMOVE = [
-        "Id", "Model Id", "Instance", "Year",
-        "Memory", "Clock Time",
-        "Parameterised", "Selected", "Surprise"
-    ]
 
-    def analyze_learned():
+    def analyze_learned(g_v):
         """
         Analyzes learned data.
         """
-        with tqdm(total=len(RESULTS)) as counter:
-            for _, entry in RESULTS.items():
-                if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+        with tqdm(total=len(g_v.RESULTS)) as counter:
+            for _, entry in g_v.RESULTS.items():
+                if entry["Year"] == g_v.TOOL_YEAR[entry["Tool"]] \
                         and "Selected" in entry \
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in REMOVE \
+                        if key not in g_v.REMOVE \
                                 and key not in GV.TECHNIQUES:
                             characteristics[key] = translate(value)
-                    LEARNED.append(characteristics)
+                    g_v.LEARNED.append(characteristics)
                 counter.update(1)
-        logging.info(f"Select {len (LEARNED)} best entries.")
+        logging.info(f"Select {len (g_v.LEARNED)} best entries.")
         # Convert this dict into dataframe:
-        dataframe = pandas.DataFrame(LEARNED)
+        dataframe = pandas.DataFrame(g_v.LEARNED)
         # Remove duplicate entries if required:
         if not ARGUMENTS.duplicates:
             dataframe = dataframe.drop_duplicates(keep="first")
@@ -534,23 +276,23 @@ if __name__ == "__main__":
                 logging.info(f"  Median  : {statistics.median  (subresults)}")
             algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
             if ARGUMENTS.mcc_score:
-                SCORES[name] = mcc_score(algorithm)
-                for key, value in SCORES[name].items():
+                g_v.SCORES[name] = mcc_score(algorithm, g_v)
+                for key, value in g_v.SCORES[name].items():
                     alg_results[key] = value
-                total = SCORES[name]["Total"]
+                total = g_v.SCORES[name]["Total"]
                 logging.info(f"  Score   : {total}")
-            ALGORITHMS_RESULTS.append(alg_results)
+            g_v.ALGORITHMS_RESULTS.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
         with open("learned.json", "w") as output:
             json.dump({
-                "algorithms": ALGORITHMS_RESULTS,
+                "algorithms": g_v.ALGORITHMS_RESULTS,
                 "translation": translate.ITEMS,
             }, output)
         if ARGUMENTS.mcc_score:
-            logging.info(f"Maximum score is {max_score()}.")
+            logging.info(f"Maximum score is {max_score(g_v)}.")
             srt = []
-            for name, score in SCORES.items():
+            for name, score in g_v.SCORES.items():
                 for examination, value in score.items():
                     srt.append({
                         "name": name,
@@ -566,9 +308,9 @@ if __name__ == "__main__":
                 name = element["name"]
                 logging.info(f"In {examination} : {score} for {name}.")
         if ARGUMENTS.output_dt:
-            if "decision-tree" in GV.ALGORITHMS:
+            if "decision-tree" in g_v.ALGORITHMS:
                 tree.export_graphviz(
-                    GV.ALGORITHMS["decision-tree"](True).fit(
+                    g_v.ALGORITHMS["decision-tree"](True).fit(
                         dataframe.drop("Tool", 1), dataframe["Tool"]
                     ),
                     feature_names=dataframe.drop("Tool", 1).columns,
@@ -577,23 +319,25 @@ if __name__ == "__main__":
                 )
 
     logging.info(f"Analyzing learned data.")
-    analyze_learned()
+    analyze_learned(GV)
 
-    def analyze_useless():
+    print("ça va planter")
+
+    def analyze_useless(g_v):
         """
         Analyzes useless characteristics.
         """
         # Build the dataframe:
         learned = []
-        with tqdm(total=len(RESULTS)) as counter:
-            for _, entry in RESULTS.items():
-                if entry["Year"] == TOOL_YEAR[entry["Tool"]] \
+        with tqdm(total=len(g_v.RESULTS)) as counter:
+            for _, entry in g_v.RESULTS.items():
+                if entry["Year"] == g_v.TOOL_YEAR[entry["Tool"]] \
                         and "Selected" in entry \
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in REMOVE \
-                                and key not in GV.TECHNIQUES:
+                        if key not in g_v.REMOVE \
+                                and key not in g_v.TECHNIQUES:
                             characteristics[key] = translate(value)
                     learned.append(characteristics)
                 counter.update(1)
@@ -606,23 +350,23 @@ if __name__ == "__main__":
         results = {}
         # For each algorithm, try to drop each characteristic,
         # and compare the score with the same with all characteristics:
-        for name, falgorithm in GV.ALGORITHMS.items():
+        for name, falgorithm in g_v.ALGORITHMS.items():
             useless = {}
-            for characteristic in GV.TO_DROP:
+            for characteristic in g_v.TO_DROP:
                 useless[characteristic] = True
             logging.info(f"Analyzing characteristics in algorithm {name}.")
             results[name] = {}
-            with tqdm(total=len(GV.TO_DROP)) as counter:
-                for to_drop in GV.TO_DROP:
+            with tqdm(total=len(g_v.TO_DROP)) as counter:
+                for to_drop in g_v.TO_DROP:
                     algorithm = falgorithm(True)
                     algorithm.fit(
                         dataframe.drop("Tool", 1).drop(to_drop, 1),
                         dataframe["Tool"]
                     )
-                    score = mcc_score(algorithm, to_drop)
+                    score = mcc_score(algorithm, g_v, to_drop)
                     # If the score has changed,
                     # the characteristic is not useless:
-                    if score != SCORES[name]:
+                    if score != g_v.SCORES[name]:
                         useless[to_drop] = False
                     counter.update(1)
             # The set of potential useless characteristics is obtained:
@@ -656,10 +400,10 @@ if __name__ == "__main__":
                                 .drop(characteristics, 1),
                                 dataframe["Tool"]
                             )
-                            score = mcc_score(algorithm, characteristics)
+                            score = mcc_score(algorithm, g_v, characteristics)
                             # If the score has changed, the characteristics
                             # are linked:
-                            if score != SCORES[name]:
+                            if score != g_v.SCORES[name]:
                                 related.append(set(characteristics))
                         counter.update(1)
                 if not related:
@@ -674,4 +418,4 @@ if __name__ == "__main__":
 
     if ARGUMENTS.useless and ARGUMENTS.mcc_score:
         logging.info(f"Analyzing useless characteristics.")
-        analyze_useless()
+        analyze_useless(GV)

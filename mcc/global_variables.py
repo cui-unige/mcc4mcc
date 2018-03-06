@@ -1,8 +1,13 @@
+"""
+The main code was too coupled with global variables. So this class centrelize
+them.
+"""
+
 
 class GlobalVariales():
     """docstring for GlobalVariales"""
 
-    def __init__(self, ALGORITHMS={}):
+    def __init__(self):
         self.CHARACTERISTIC_KEYS = [
             "Id",
             "Type",
@@ -78,7 +83,20 @@ class GlobalVariales():
             "sift": "tina",
             "tedd": "tina",
         }
-        self.ALGORITHMS = ALGORITHMS
+        self.ALGORITHMS = {}
         self.TECHNIQUES = {}
         self.CHARACTERISTICS = {}
         self.TOOLS = {}
+        self.RESULTS = {}
+        self.DATA = {}
+        self.TOOL_YEAR = {}
+        self.KNOWN = {}
+        self.MAX_SCORE = 16 + 2 + 2
+        self.SCORES = {}
+        self.LEARNED = []
+        self.ALGORITHMS_RESULTS = []
+        self.REMOVE = [
+            "Id", "Model Id", "Instance", "Year",
+            "Memory", "Clock Time",
+            "Parameterised", "Selected", "Surprise"
+        ]

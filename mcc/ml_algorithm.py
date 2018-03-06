@@ -1,5 +1,11 @@
-import numpy as np
+
+"""
+Module contains all the machine learning algorithms.
+"""
+
+
 from collections import Counter
+import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.neighbors import KNeighborsClassifier
