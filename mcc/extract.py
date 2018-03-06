@@ -157,7 +157,7 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
-    gv = GlobalVariales(ALGORITHMS=init_algorithms(ARGUMENTS))
+    GV = GlobalVariales(ALGORITHMS=init_algorithms(ARGUMENTS))
 
     def read_characteristics():
         """
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 reader = csv.reader(data)
                 for row in reader:
                     entry = {}
-                    for i, characteristic in enumerate(gv.CHARACTERISTIC_KEYS):
+                    for i, characteristic in enumerate(GV.CHARACTERISTIC_KEYS):
                         entry[characteristic] = value_of(row[i])
                     entry["Place/Transition"] = True if re.search(
                         "PT", entry["Type"]) else False
@@ -182,7 +182,7 @@ if __name__ == "__main__":
                     del entry["Origin"]
                     del entry["Submitter"]
                     del entry["Year"]
-                    gv.CHARACTERISTICS[entry["Id"]] = entry
+                    GV.CHARACTERISTICS[entry["Id"]] = entry
                     counter.update(1)
     logging.info(
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
@@ -201,7 +201,7 @@ if __name__ == "__main__":
                 reader = csv.reader(data)
                 for row in reader:
                     entry = {}
-                    for i, result in enumerate(gv.RESULT_KEYS):
+                    for i, result in enumerate(GV.RESULT_KEYS):
                         entry[result] = value_of(row[i])
                     if entry["Time OK"] \
                             and entry["Memory OK"] \
@@ -212,7 +212,7 @@ if __name__ == "__main__":
                                 r"([A-Z_]+)",
                                 entry["Techniques"]
                         ):
-                            gv.TECHNIQUES[technique] = True
+                            GV.TECHNIQUES[technique] = True
                             entry[technique] = True
                         entry["Surprise"] = True if re.search(
                             r"^S_", entry["Instance"]) else False
@@ -225,8 +225,8 @@ if __name__ == "__main__":
                             entry["Model Id"] = entry["Instance"]
                         else:
                             entry["Model Id"] = split.group(1)
-                        if entry["Model Id"] in gv.CHARACTERISTICS:
-                            model = gv.CHARACTERISTICS[entry["Model Id"]]
+                        if entry["Model Id"] in GV.CHARACTERISTICS:
+                            model = GV.CHARACTERISTICS[entry["Model Id"]]
                             for key in model.keys():
                                 if key != "Id":
                                     entry[key] = model[key]
@@ -248,7 +248,7 @@ if __name__ == "__main__":
         """
         with tqdm(total=len(RESULTS)) as counter:
             for _, entry in RESULTS.items():
-                for technique in gv.TECHNIQUES:
+                for technique in GV.TECHNIQUES:
                     if technique not in entry:
                         entry[technique] = False
                 counter.update(1)
@@ -262,8 +262,8 @@ if __name__ == "__main__":
         with tqdm(total=len(RESULTS)) as counter:
             for _, entry in RESULTS.items():
                 name = entry["Tool"]
-                if name in gv.TOOLS_RENAME:
-                    entry["Tool"] = gv.TOOLS_RENAME[name]
+                if name in GV.TOOLS_RENAME:
+                    entry["Tool"] = GV.TOOLS_RENAME[name]
                 counter.update(1)
     logging.info(f"Renaming tools.")
     rename_tools()
@@ -279,8 +279,8 @@ if __name__ == "__main__":
         size = SIZE
         with tqdm(total=len(RESULTS)) as counter:
             for _, entry in RESULTS.items():
-                if entry["Tool"] not in gv.TOOLS:
-                    gv.TOOLS[entry["Tool"]] = True
+                if entry["Tool"] not in GV.TOOLS:
+                    GV.TOOLS[entry["Tool"]] = True
                 if entry["Examination"] not in DATA:
                     DATA[entry["Examination"]] = {}
                 examination = DATA[entry["Examination"]]
@@ -421,12 +421,12 @@ if __name__ == "__main__":
         for examination, models in KNOWN.items():
             score[examination] = 0
             for model, instances in models.items():
-                if alg_or_tool in gv.TOOLS:
+                if alg_or_tool in GV.TOOLS:
                     tool = alg_or_tool
                 else:
                     test = {}
                     test["Examination"] = translate(examination)
-                    for key, value in gv.CHARACTERISTICS[model].items():
+                    for key, value in GV.CHARACTERISTICS[model].items():
                         test[key] = translate(value)
                     del test["Id"]
                     del test["Parameterised"]
@@ -461,8 +461,8 @@ if __name__ == "__main__":
         """
         Computes the scores of all tools.
         """
-        with tqdm(total=len(gv.TOOLS)) as counter:
-            for tool in gv.TOOLS:
+        with tqdm(total=len(GV.TOOLS)) as counter:
+            for tool in GV.TOOLS:
                 SCORES[tool] = mcc_score(tool)
                 counter.update(1)
 
@@ -495,7 +495,7 @@ if __name__ == "__main__":
                     characteristics = {}
                     for key, value in entry.items():
                         if key not in REMOVE \
-                                and key not in gv.TECHNIQUES:
+                                and key not in GV.TECHNIQUES:
                             characteristics[key] = translate(value)
                     LEARNED.append(characteristics)
                 counter.update(1)
@@ -507,7 +507,7 @@ if __name__ == "__main__":
             dataframe = dataframe.drop_duplicates(keep="first")
         logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
         # Compute efficiency for each algorithm:
-        for name, algorithm in gv.ALGORITHMS.items():
+        for name, algorithm in GV.ALGORITHMS.items():
             subresults = []
             logging.info(f"Learning using algorithm: '{name}'.")
             alg_results = {
@@ -566,9 +566,9 @@ if __name__ == "__main__":
                 name = element["name"]
                 logging.info(f"In {examination} : {score} for {name}.")
         if ARGUMENTS.output_dt:
-            if "decision-tree" in gv.ALGORITHMS:
+            if "decision-tree" in GV.ALGORITHMS:
                 tree.export_graphviz(
-                    gv.ALGORITHMS["decision-tree"](True).fit(
+                    GV.ALGORITHMS["decision-tree"](True).fit(
                         dataframe.drop("Tool", 1), dataframe["Tool"]
                     ),
                     feature_names=dataframe.drop("Tool", 1).columns,
@@ -593,7 +593,7 @@ if __name__ == "__main__":
                     characteristics = {}
                     for key, value in entry.items():
                         if key not in REMOVE \
-                                and key not in gv.TECHNIQUES:
+                                and key not in GV.TECHNIQUES:
                             characteristics[key] = translate(value)
                     learned.append(characteristics)
                 counter.update(1)
@@ -606,14 +606,14 @@ if __name__ == "__main__":
         results = {}
         # For each algorithm, try to drop each characteristic,
         # and compare the score with the same with all characteristics:
-        for name, falgorithm in gv.ALGORITHMS.items():
+        for name, falgorithm in GV.ALGORITHMS.items():
             useless = {}
-            for characteristic in gv.TO_DROP:
+            for characteristic in GV.TO_DROP:
                 useless[characteristic] = True
             logging.info(f"Analyzing characteristics in algorithm {name}.")
             results[name] = {}
-            with tqdm(total=len(gv.TO_DROP)) as counter:
-                for to_drop in gv.TO_DROP:
+            with tqdm(total=len(GV.TO_DROP)) as counter:
+                for to_drop in GV.TO_DROP:
                     algorithm = falgorithm(True)
                     algorithm.fit(
                         dataframe.drop("Tool", 1).drop(to_drop, 1),
