@@ -122,12 +122,12 @@ def init_algorithms(arguments):
     # Do not include these algorithms with duplicates,
     # as they are very slow.
     if not arguments.duplicates:
-        algorithms["knn"] = lambda _: KNeighborsClassifier(
+        algorithms["knn"] = KNeighborsClassifier(
             n_neighbors=10,
             weights="distance",
             metric=knn_distance,
         )
-        algorithms["bagging-knn"] = lambda _: BaggingClassifier(
+        algorithms["bagging-knn"] = BaggingClassifier(
             KNeighborsClassifier(
                 n_neighbors=10,
                 weights="distance",
@@ -138,27 +138,27 @@ def init_algorithms(arguments):
             n_estimators=10,
         )
 
-    algorithms["ada-boost"] = lambda _: AdaBoostClassifier()
+    algorithms["ada-boost"] = AdaBoostClassifier()
 
-    algorithms["naive-bayes"] = lambda _: GaussianNB()
+    algorithms["naive-bayes"] = GaussianNB()
 
-    algorithms["svm"] = lambda _: SVC()
+    algorithms["svm"] = SVC()
 
-    algorithms["linear-svm"] = lambda _: LinearSVC()
+    algorithms["linear-svm"] = LinearSVC()
 
-    algorithms["decision-tree"] = lambda _: DecisionTreeClassifier()
+    algorithms["decision-tree"] = DecisionTreeClassifier()
 
-    algorithms["random-forest"] = lambda _: RandomForestClassifier(
+    algorithms["random-forest"] = RandomForestClassifier(
         n_estimators=30,
         max_features=None,
     )
 
-    algorithms["neural-network"] = lambda _: MLPClassifier(
+    algorithms["neural-network"] = MLPClassifier(
         solver="lbfgs",
     )
 
     # Voting part:
-    algorithms["voting-classifier"] = lambda _: VotingClassifier(
+    algorithms["voting-classifier"] = VotingClassifier(
         [
             ("decision-tree", DecisionTreeClassifier()),
             ("random-forest", RandomForestClassifier(
@@ -171,5 +171,5 @@ def init_algorithms(arguments):
     )
 
     # Custom part
-    algorithms["custom-algo"] = lambda _: MyAlgo()
+    algorithms["custom-algo"] = MyAlgo()
     return algorithms

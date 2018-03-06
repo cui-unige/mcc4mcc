@@ -529,7 +529,7 @@ if __name__ == "__main__":
                             (2 if entry["time"] == bestt else 0) + \
                             (2 if entry["memory"] == bestm else 0)
                         break
-                score[examination] += subscore / (len(instances)-1)
+                score[examination] += subscore / (len(instances) - 1)
         full_score = 0
         for examination, value in score.items():
             full_score += value
@@ -589,7 +589,7 @@ if __name__ == "__main__":
             dataframe = dataframe.drop_duplicates(keep="first")
         logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
         # Compute efficiency for each algorithm:
-        for name, falgorithm in ALGORITHMS.items():
+        for name, algorithm in ALGORITHMS.items():
             subresults = []
             logging.info(f"Learning using algorithm: '{name}'.")
             alg_results = {
@@ -603,7 +603,6 @@ if __name__ == "__main__":
                     test_x = test.drop("Tool", 1)
                     test_y = test["Tool"]
                     # Apply algorithm:
-                    algorithm = falgorithm(True)
                     algorithm.fit(training_x, training_y)
                     subresults.append(algorithm.score(test_x, test_y))
                 alg_results["min"] = min(subresults)
@@ -615,7 +614,6 @@ if __name__ == "__main__":
                 logging.info(f"  Max     : {max                (subresults)}")
                 logging.info(f"  Mean    : {statistics.mean    (subresults)}")
                 logging.info(f"  Median  : {statistics.median  (subresults)}")
-            algorithm = falgorithm(True)
             algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
             if ARGUMENTS.mcc_score:
                 SCORES[name] = mcc_score(algorithm)
