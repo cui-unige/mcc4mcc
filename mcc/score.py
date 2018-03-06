@@ -21,7 +21,7 @@ def max_score(g_v):
     Computes the maximum score using the rules from the MCC.
     """
     score = 0
-    for _, models in g_v.KNOWN.items():
+    for _, models in g_v.known.items():
         for _ in models.items():
             score += 16 + 2 + 2
     return int(score)

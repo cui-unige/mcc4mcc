@@ -140,7 +140,7 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s",
     )
     GV = GlobalVariales()
-    GV.ALGORITHMS = init_algorithms(ARGUMENTS)
+    GV.algorithms = init_algorithms(ARGUMENTS)
 
     logging.info(
         f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
@@ -155,11 +155,11 @@ if __name__ == "__main__":
     logging.info(f"Renaming tools.")
     rename_tools(GV)
 
-    GV.SIZE = len(GV.RESULTS)
+    GV.size = len(GV.results)
 
     logging.info(f"Sorting data.")
-    GV.SIZE = sort_data(GV)
-    GV.DISTANCE = ARGUMENTS.distance
+    GV.size = sort_data(GV)
+    GV.distance = ARGUMENTS.distance
 
     logging.info(f"Analyzing known data.")
     analyze_known(GV)
@@ -169,15 +169,15 @@ if __name__ == "__main__":
         Computes a score using the rules from the MCC.
         """
         score = {}
-        for examination, models in g_v.KNOWN.items():
+        for examination, models in g_v.known.items():
             score[examination] = 0
             for model, instances in models.items():
-                if alg_or_tool in g_v.TOOLS:
+                if alg_or_tool in g_v.tools:
                     tool = alg_or_tool
                 else:
                     test = {}
                     test["Examination"] = translate(examination)
-                    for key, value in g_v.CHARACTERISTICS[model].items():
+                    for key, value in g_v.characteristics[model].items():
                         test[key] = translate(value)
                     del test["Id"]
                     del test["Parameterised"]
@@ -210,9 +210,9 @@ if __name__ == "__main__":
         """
         Computes the scores of all tools.
         """
-        with tqdm(total=len(g_v.TOOLS)) as counter:
-            for tool in GV.TOOLS:
-                g_v.SCORES[tool] = mcc_score(tool, g_v)
+        with tqdm(total=len(g_v.tools)) as counter:
+            for tool in GV.tools:
+                g_v.scores[tool] = mcc_score(tool, g_v)
                 counter.update(1)
 
     if ARGUMENTS.mcc_score:
@@ -229,27 +229,27 @@ if __name__ == "__main__":
         """
         Analyzes learned data.
         """
-        with tqdm(total=len(g_v.RESULTS)) as counter:
-            for _, entry in g_v.RESULTS.items():
-                if entry["Year"] == g_v.TOOL_YEAR[entry["Tool"]] \
+        with tqdm(total=len(g_v.results)) as counter:
+            for _, entry in g_v.results.items():
+                if entry["Year"] == g_v.tool_year[entry["Tool"]] \
                         and "Selected" in entry \
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in g_v.REMOVE \
-                                and key not in GV.TECHNIQUES:
+                        if key not in g_v.remove \
+                                and key not in GV.techniques:
                             characteristics[key] = translate(value)
-                    g_v.LEARNED.append(characteristics)
+                    g_v.learned.append(characteristics)
                 counter.update(1)
-        logging.info(f"Select {len (g_v.LEARNED)} best entries.")
+        logging.info(f"Select {len (g_v.learned)} best entries.")
         # Convert this dict into dataframe:
-        dataframe = pandas.DataFrame(g_v.LEARNED)
+        dataframe = pandas.DataFrame(g_v.learned)
         # Remove duplicate entries if required:
         if not ARGUMENTS.duplicates:
             dataframe = dataframe.drop_duplicates(keep="first")
         logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
         # Compute efficiency for each algorithm:
-        for name, algorithm in GV.ALGORITHMS.items():
+        for name, algorithm in GV.algorithms.items():
             subresults = []
             logging.info(f"Learning using algorithm: '{name}'.")
             alg_results = {
@@ -276,23 +276,23 @@ if __name__ == "__main__":
                 logging.info(f"  Median  : {statistics.median  (subresults)}")
             algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
             if ARGUMENTS.mcc_score:
-                g_v.SCORES[name] = mcc_score(algorithm, g_v)
-                for key, value in g_v.SCORES[name].items():
+                g_v.scores[name] = mcc_score(algorithm, g_v)
+                for key, value in g_v.scores[name].items():
                     alg_results[key] = value
-                total = g_v.SCORES[name]["Total"]
+                total = g_v.scores[name]["Total"]
                 logging.info(f"  Score   : {total}")
-            g_v.ALGORITHMS_RESULTS.append(alg_results)
+            g_v.algorithms_results.append(alg_results)
             with open(f"learned.{name}.p", "wb") as output:
                 pickle.dump(algorithm, output)
         with open("learned.json", "w") as output:
             json.dump({
-                "algorithms": g_v.ALGORITHMS_RESULTS,
+                "algorithms": g_v.algorithms_results,
                 "translation": translate.ITEMS,
             }, output)
         if ARGUMENTS.mcc_score:
             logging.info(f"Maximum score is {max_score(g_v)}.")
             srt = []
-            for name, score in g_v.SCORES.items():
+            for name, score in g_v.scores.items():
                 for examination, value in score.items():
                     srt.append({
                         "name": name,
@@ -308,9 +308,9 @@ if __name__ == "__main__":
                 name = element["name"]
                 logging.info(f"In {examination} : {score} for {name}.")
         if ARGUMENTS.output_dt:
-            if "decision-tree" in g_v.ALGORITHMS:
+            if "decision-tree" in g_v.algorithms:
                 tree.export_graphviz(
-                    g_v.ALGORITHMS["decision-tree"](True).fit(
+                    g_v.algorithms["decision-tree"](True).fit(
                         dataframe.drop("Tool", 1), dataframe["Tool"]
                     ),
                     feature_names=dataframe.drop("Tool", 1).columns,
@@ -329,15 +329,15 @@ if __name__ == "__main__":
         """
         # Build the dataframe:
         learned = []
-        with tqdm(total=len(g_v.RESULTS)) as counter:
-            for _, entry in g_v.RESULTS.items():
-                if entry["Year"] == g_v.TOOL_YEAR[entry["Tool"]] \
+        with tqdm(total=len(g_v.results)) as counter:
+            for _, entry in g_v.results.items():
+                if entry["Year"] == g_v.tool_year[entry["Tool"]] \
                         and "Selected" in entry \
                         and entry["Selected"]:
                     characteristics = {}
                     for key, value in entry.items():
-                        if key not in g_v.REMOVE \
-                                and key not in g_v.TECHNIQUES:
+                        if key not in g_v.remove \
+                                and key not in g_v.techniques:
                             characteristics[key] = translate(value)
                     learned.append(characteristics)
                 counter.update(1)
@@ -350,14 +350,14 @@ if __name__ == "__main__":
         results = {}
         # For each algorithm, try to drop each characteristic,
         # and compare the score with the same with all characteristics:
-        for name, falgorithm in g_v.ALGORITHMS.items():
+        for name, falgorithm in g_v.algorithms.items():
             useless = {}
-            for characteristic in g_v.TO_DROP:
+            for characteristic in g_v.to_drop:
                 useless[characteristic] = True
             logging.info(f"Analyzing characteristics in algorithm {name}.")
             results[name] = {}
-            with tqdm(total=len(g_v.TO_DROP)) as counter:
-                for to_drop in g_v.TO_DROP:
+            with tqdm(total=len(g_v.to_drop)) as counter:
+                for to_drop in g_v.to_drop:
                     algorithm = falgorithm(True)
                     algorithm.fit(
                         dataframe.drop("Tool", 1).drop(to_drop, 1),
@@ -366,7 +366,7 @@ if __name__ == "__main__":
                     score = mcc_score(algorithm, g_v, to_drop)
                     # If the score has changed,
                     # the characteristic is not useless:
-                    if score != g_v.SCORES[name]:
+                    if score != g_v.scores[name]:
                         useless[to_drop] = False
                     counter.update(1)
             # The set of potential useless characteristics is obtained:
@@ -403,7 +403,7 @@ if __name__ == "__main__":
                             score = mcc_score(algorithm, g_v, characteristics)
                             # If the score has changed, the characteristics
                             # are linked:
-                            if score != g_v.SCORES[name]:
+                            if score != g_v.scores[name]:
                                 related.append(set(characteristics))
                         counter.update(1)
                 if not related:

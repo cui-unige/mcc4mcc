@@ -40,7 +40,7 @@ def read_characteristics(arguments, g_v):
             reader = csv.reader(data)
             for row in reader:
                 entry = {}
-                for i, characteristic in enumerate(g_v.CHARACTERISTIC_KEYS):
+                for i, characteristic in enumerate(g_v.characteristic_keys):
                     entry[characteristic] = value_of(row[i])
                 entry["Place/Transition"] = True if re.search(
                     "PT", entry["Type"]) else False
@@ -51,7 +51,7 @@ def read_characteristics(arguments, g_v):
                 del entry["Origin"]
                 del entry["Submitter"]
                 del entry["Year"]
-                g_v.CHARACTERISTICS[entry["Id"]] = entry
+                g_v.characteristics[entry["Id"]] = entry
                 counter.update(1)
 
 
@@ -66,18 +66,18 @@ def read_results(arguments, g_v):
             reader = csv.reader(data)
             for row in reader:
                 entry = {}
-                for i, result in enumerate(g_v.RESULT_KEYS):
+                for i, result in enumerate(g_v.result_keys):
                     entry[result] = value_of(row[i])
                 if entry["Time OK"] \
                         and entry["Memory OK"] \
                         and entry["Status"] == "normal" \
                         and entry["Results"] not in ["DNC", "DNF", "CC"]:
-                    g_v.RESULTS[entry["Id"]] = entry
+                    g_v.results[entry["Id"]] = entry
                     for technique in re.findall(
                             r"([A-Z_]+)",
                             entry["Techniques"]
                     ):
-                        g_v.TECHNIQUES[technique] = True
+                        g_v.techniques[technique] = True
                         entry[technique] = True
                     entry["Surprise"] = True if re.search(
                         r"^S_", entry["Instance"]) else False
@@ -90,8 +90,8 @@ def read_results(arguments, g_v):
                         entry["Model Id"] = entry["Instance"]
                     else:
                         entry["Model Id"] = split.group(1)
-                    if entry["Model Id"] in g_v.CHARACTERISTICS:
-                        model = g_v.CHARACTERISTICS[entry["Model Id"]]
+                    if entry["Model Id"] in g_v.characteristics:
+                        model = g_v.characteristics[entry["Model Id"]]
                         for key in model.keys():
                             if key != "Id":
                                 entry[key] = model[key]
@@ -110,9 +110,9 @@ def set_techniques(g_v):
     """
     Sets techniques to Boolean values in results.
     """
-    with tqdm(total=len(g_v.RESULTS)) as counter:
-        for _, entry in g_v.RESULTS.items():
-            for technique in g_v.TECHNIQUES:
+    with tqdm(total=len(g_v.results)) as counter:
+        for _, entry in g_v.results.items():
+            for technique in g_v.techniques:
                 if technique not in entry:
                     entry[technique] = False
             counter.update(1)
@@ -122,11 +122,11 @@ def rename_tools(g_v):
     """
     Rename tools that are duplicated.
     """
-    with tqdm(total=len(g_v.RESULTS)) as counter:
-        for _, entry in g_v.RESULTS.items():
+    with tqdm(total=len(g_v.results)) as counter:
+        for _, entry in g_v.results.items():
             name = entry["Tool"]
-            if name in g_v.TOOLS_RENAME:
-                entry["Tool"] = g_v.TOOLS_RENAME[name]
+            if name in g_v.tools_rename:
+                entry["Tool"] = g_v.tools_rename[name]
             counter.update(1)
 
 
@@ -134,14 +134,14 @@ def sort_data(g_v):
     """
     Sorts data into tree of examination/model/instance/tool/year/entry.
     """
-    size = g_v.SIZE
-    with tqdm(total=len(g_v.RESULTS)) as counter:
-        for _, entry in g_v.RESULTS.items():
-            if entry["Tool"] not in g_v.TOOLS:
-                g_v.TOOLS[entry["Tool"]] = True
-            if entry["Examination"] not in g_v.DATA:
-                g_v.DATA[entry["Examination"]] = {}
-            examination = g_v.DATA[entry["Examination"]]
+    size = g_v.size
+    with tqdm(total=len(g_v.results)) as counter:
+        for _, entry in g_v.results.items():
+            if entry["Tool"] not in g_v.tools:
+                g_v.tools[entry["Tool"]] = True
+            if entry["Examination"] not in g_v.data:
+                g_v.data[entry["Examination"]] = {}
+            examination = g_v.data[entry["Examination"]]
             if entry["Model Id"] not in examination:
                 examination[entry["Model Id"]] = {}
             model = examination[entry["Model Id"]]
@@ -151,10 +151,10 @@ def sort_data(g_v):
             if entry["Tool"] not in instance:
                 instance[entry["Tool"]] = {}
             tool = instance[entry["Tool"]]
-            if entry["Tool"] not in g_v.TOOL_YEAR:
-                g_v.TOOL_YEAR[entry["Tool"]] = 0
-            if entry["Year"] > g_v.TOOL_YEAR[entry["Tool"]]:
-                g_v.TOOL_YEAR[entry["Tool"]] = entry["Year"]
+            if entry["Tool"] not in g_v.tool_year:
+                g_v.tool_year[entry["Tool"]] = 0
+            if entry["Year"] > g_v.tool_year[entry["Tool"]]:
+                g_v.tool_year[entry["Tool"]] = entry["Year"]
             if entry["Year"] in tool:
                 size -= 1
                 if entry["Clock Time"] < tool[entry["Year"]]["Clock Time"]:
@@ -169,10 +169,10 @@ def analyze_known(g_v):
     """
     Analyzes known data.
     """
-    with tqdm(total=g_v.SIZE) as counter:
-        for examination, models in g_v.DATA.items():
-            g_v.KNOWN[examination] = {}
-            known_e = g_v.KNOWN[examination]
+    with tqdm(total=g_v.size) as counter:
+        for examination, models in g_v.data.items():
+            g_v.known[examination] = {}
+            known_e = g_v.known[examination]
             for model, instances in models.items():
                 known_e[model] = {}
                 known_m = known_e[model]
@@ -189,7 +189,7 @@ def analyze_known(g_v):
                                 "memory": 0,
                             }
                         for year, entry in years.items():
-                            if year == g_v.TOOL_YEAR[tool]:
+                            if year == g_v.tool_year[tool]:
                                 subsubresults[tool] = {
                                     "time": entry["Clock Time"],
                                     "memory": entry["Memory"],
@@ -231,13 +231,13 @@ def analyze_known(g_v):
                                 tool = x_e["tool"]
                                 ratio = x_e["time"] / best["time"]
                                 if (
-                                        tool in tools and g_v.TOOL_YEAR[tool]
+                                        tool in tools and g_v.tool_year[tool]
                                         in tools[tool] and (
-                                            g_v.DISTANCE is None or ratio <= (
-                                                1 + g_v.DISTANC)
+                                            g_v.distance is None or ratio <= (
+                                                1 + g_v.distanc)
                                         )
                                 ):
-                                    entry = tools[tool][g_v.TOOL_YEAR[tool]]
+                                    entry = tools[tool][g_v.tool_year[tool]]
                                     entry["Selected"] = True
     with open("known.json", "w") as output:
-        json.dump(g_v.KNOWN, output)
+        json.dump(g_v.known, output)

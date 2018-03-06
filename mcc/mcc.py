@@ -21,16 +21,18 @@ if __name__ == "__main__":
     import xmltodict
 
     import extract
+    import processing
+    import ml_algorithm
 
     def knn_distance(lhs, rhs, bound=2):
         """The knn distance function, required to load knn algorithms."""
-        return extract.knn_distance(lhs, rhs, bound)
+        return ml_algorithm.knn_distance(lhs, rhs, bound)
 
     def read_boolean(filename):
         """Read a Boolean file from the MCC."""
         with open(filename, "r") as boolfile:
             what = boolfile.readline().strip()
-            return extract.value_of(what)
+            return processing.value_of(what)
 
     PARSER = argparse.ArgumentParser(
         description="Model Checker Collection for the Model Checking Contest"

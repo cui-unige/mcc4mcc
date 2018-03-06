@@ -8,7 +8,7 @@ class GlobalVariales():
     """docstring for GlobalVariales"""
 
     def __init__(self):
-        self.CHARACTERISTIC_KEYS = [
+        self.characteristic_keys = [
             "Id",
             "Type",
             "Fixed size",
@@ -37,7 +37,7 @@ class GlobalVariales():
             "Submitter",
             "Year",
         ]
-        self.RESULT_KEYS = [
+        self.result_keys = [
             "Year",
             "Tool",
             "Instance",
@@ -54,7 +54,7 @@ class GlobalVariales():
             "Status",
             "Id",
         ]
-        self.TO_DROP = [
+        self.to_drop = [
             "Ordinary",
             "Simple Free Choice",
             "Extended Free Choice",
@@ -76,26 +76,26 @@ class GlobalVariales():
             "Quasi Live",
             "Live",
         ]
-        self.TOOLS_RENAME = {
+        self.tools_rename = {
             "tapaalPAR": "tapaal",
             "tapaalSEQ": "tapaal",
             "tapaalEXP": "tapaal",
             "sift": "tina",
             "tedd": "tina",
         }
-        self.ALGORITHMS = {}
-        self.TECHNIQUES = {}
-        self.CHARACTERISTICS = {}
-        self.TOOLS = {}
-        self.RESULTS = {}
-        self.DATA = {}
-        self.TOOL_YEAR = {}
-        self.KNOWN = {}
-        self.MAX_SCORE = 16 + 2 + 2
-        self.SCORES = {}
-        self.LEARNED = []
-        self.ALGORITHMS_RESULTS = []
-        self.REMOVE = [
+        self.algorithms = {}
+        self.techniques = {}
+        self.characteristics = {}
+        self.tools = {}
+        self.results = {}
+        self.data = {}
+        self.tool_year = {}
+        self.known = {}
+        self.max_score = 16 + 2 + 2
+        self.scores = {}
+        self.learned = []
+        self.algorithms_results = []
+        self.remove = [
             "Id", "Model Id", "Instance", "Year",
             "Memory", "Clock Time",
             "Parameterised", "Selected", "Surprise"
