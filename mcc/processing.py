@@ -6,8 +6,8 @@ machine learning datas.
 import csv
 import re
 import json
-from tqdm import tqdm
 import itertools
+from tqdm import tqdm
 
 
 def value_of(what):

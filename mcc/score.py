@@ -3,9 +3,9 @@ This module contains the scoring functions.
 """
 import json
 import logging
-import pandas
 import statistics
 import pickle
+import pandas
 from sklearn.model_selection import train_test_split
 from sklearn import tree
 from tqdm import tqdm

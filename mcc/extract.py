@@ -16,6 +16,10 @@ from processing import rename_tools, sort_data, analyze_known, translate
 from score import compute_scores, analyze_learned, analyze_useless
 
 
+translate.ITEMS = {}
+translate.NEXT_ID = 10
+
+
 if __name__ == "__main__":
 
     # It parses the cli arguments
@@ -96,9 +100,6 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
-
-    translate.ITEMS = {}
-    translate.NEXT_ID = 10
 
     # Init the class containing all the global variables.
     GV = GlobalVariales()

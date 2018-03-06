@@ -205,10 +205,10 @@ if __name__ == "__main__":
         MODEL = pickle.load(i)
     TEST = {}
     for key, value in CHARACTERISTICS.items():
-        TEST[key] = extract.translate(value)
+        TEST[key] = processing.translate(value)
     # http://scikit-learn.org/stable/modules/model_persistence.html
     PREDICTED = MODEL.predict(pandas.DataFrame([TEST]))
-    LEARNED_TOOLS = [{"tool": extract.translate_back(PREDICTED[0])}]
+    LEARNED_TOOLS = [{"tool": processing.translate_back(PREDICTED[0])}]
 
     if ARGUMENTS.evaluate:
         logging.info(f"Known tools are: {KNOWN_TOOLS}.")
