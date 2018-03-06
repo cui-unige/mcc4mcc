@@ -7,6 +7,7 @@ import csv
 import re
 import json
 from tqdm import tqdm
+import itertools
 
 
 def value_of(what):
@@ -26,6 +27,38 @@ def value_of(what):
     except ValueError:
         pass
     return what
+
+
+def translate(what):
+    """Translate values into numbers for machine learning algorithms."""
+    if what is None:
+        return 0
+    if isinstance(what, (bool, str)):
+        if what not in translate.ITEMS:
+            translate.ITEMS[what] = translate.NEXT_ID + 1
+            translate.NEXT_ID += 1
+        return translate.ITEMS[what]
+    else:
+        return what
+
+
+def translate_back(what):
+    """Translate numbers into values from machine learning algorithms."""
+    for wkey, wvalue in translate.ITEMS.items():
+        if wvalue == what:
+            return wkey
+    return None
+
+
+def powerset(iterable):
+    """
+    Computes the powerset of an iterable.
+    See https://docs.python.org/2/library/itertools.html.
+    """
+    as_list = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(as_list, r) for r in range(len(as_list) + 1)
+    )
 
 
 def read_characteristics(arguments, g_v):
