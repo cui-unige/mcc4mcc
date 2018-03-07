@@ -21,35 +21,37 @@ translate.NEXT_ID = 10
 
 
 def extract(arguments):
+    """Centrelize all extract operations"""
+
     # Init the class containing all the global variables.
-    GV = GlobalVariales()
-    GV.algorithms = init_algorithms(arguments)
+    g_v = GlobalVariales()
+    g_v.algorithms = init_algorithms(arguments)
 
     logging.info(
         f"Reading model characteristics from '{arguments.characteristics}'.")
-    read_characteristics(arguments, GV)
+    read_characteristics(arguments, g_v)
 
     logging.info(f"Reading mcc results from '{arguments.results}'.")
-    read_results(arguments, GV)
+    read_results(arguments, g_v)
 
     logging.info(f"Setting all techniques to Boolean values.")
-    set_techniques(GV)
+    set_techniques(g_v)
 
     logging.info(f"Renaming tools.")
-    rename_tools(GV)
+    rename_tools(g_v)
 
-    GV.size = len(GV.results)
+    g_v.size = len(g_v.results)
 
     logging.info(f"Sorting data.")
-    GV.size = sort_data(GV)
-    GV.distance = arguments.distance
+    g_v.size = sort_data(g_v)
+    g_v.distance = arguments.distance
 
     logging.info(f"Analyzing known data.")
-    analyze_known(GV)
+    analyze_known(g_v)
 
     if arguments.mcc_score:
         logging.info(f"Computing scores.")
-        compute_scores(GV)
+        compute_scores(g_v)
 
     translate.ITEMS = {
         False: -1,
@@ -58,11 +60,11 @@ def extract(arguments):
     }
 
     logging.info(f"Analyzing learned data.")
-    analyze_learned(arguments, GV)
+    analyze_learned(arguments, g_v)
 
     if arguments.useless and arguments.mcc_score:
         logging.info(f"Analyzing useless characteristics.")
-        analyze_useless(arguments, GV)
+        analyze_useless(arguments, g_v)
 
 
 if __name__ == "__main__":
