@@ -20,6 +20,51 @@ translate.ITEMS = {}
 translate.NEXT_ID = 10
 
 
+def extract(arguments):
+    # Init the class containing all the global variables.
+    GV = GlobalVariales()
+    GV.algorithms = init_algorithms(arguments)
+
+    logging.info(
+        f"Reading model characteristics from '{arguments.characteristics}'.")
+    read_characteristics(arguments, GV)
+
+    logging.info(f"Reading mcc results from '{arguments.results}'.")
+    read_results(arguments, GV)
+
+    logging.info(f"Setting all techniques to Boolean values.")
+    set_techniques(GV)
+
+    logging.info(f"Renaming tools.")
+    rename_tools(GV)
+
+    GV.size = len(GV.results)
+
+    logging.info(f"Sorting data.")
+    GV.size = sort_data(GV)
+    GV.distance = arguments.distance
+
+    logging.info(f"Analyzing known data.")
+    analyze_known(GV)
+
+    if arguments.mcc_score:
+        logging.info(f"Computing scores.")
+        compute_scores(GV)
+
+    translate.ITEMS = {
+        False: -1,
+        None: 0,
+        True: 1,
+    }
+
+    logging.info(f"Analyzing learned data.")
+    analyze_learned(arguments, GV)
+
+    if arguments.useless and arguments.mcc_score:
+        logging.info(f"Analyzing useless characteristics.")
+        analyze_useless(arguments, GV)
+
+
 if __name__ == "__main__":
 
     # It parses the cli arguments
@@ -101,45 +146,4 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s",
     )
 
-    # Init the class containing all the global variables.
-    GV = GlobalVariales()
-    GV.algorithms = init_algorithms(ARGUMENTS)
-
-    logging.info(
-        f"Reading model characteristics from '{ARGUMENTS.characteristics}'.")
-    read_characteristics(ARGUMENTS, GV)
-
-    logging.info(f"Reading mcc results from '{ARGUMENTS.results}'.")
-    read_results(ARGUMENTS, GV)
-
-    logging.info(f"Setting all techniques to Boolean values.")
-    set_techniques(GV)
-
-    logging.info(f"Renaming tools.")
-    rename_tools(GV)
-
-    GV.size = len(GV.results)
-
-    logging.info(f"Sorting data.")
-    GV.size = sort_data(GV)
-    GV.distance = ARGUMENTS.distance
-
-    logging.info(f"Analyzing known data.")
-    analyze_known(GV)
-
-    if ARGUMENTS.mcc_score:
-        logging.info(f"Computing scores.")
-        compute_scores(GV)
-
-    translate.ITEMS = {
-        False: -1,
-        None: 0,
-        True: 1,
-    }
-
-    logging.info(f"Analyzing learned data.")
-    analyze_learned(ARGUMENTS, GV)
-
-    if ARGUMENTS.useless and ARGUMENTS.mcc_score:
-        logging.info(f"Analyzing useless characteristics.")
-        analyze_useless(ARGUMENTS, GV)
+    extract(ARGUMENTS)
