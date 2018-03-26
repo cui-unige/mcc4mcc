@@ -1,12 +1,14 @@
 FROM debian:stable-slim
 
 RUN true \
- && mkdir -p /usr/share/man/man1/ \
+ && echo "APT::Install-Recommends "0";" >> /etc/apt/apt.conf.d/10norecommends \
+ && echo "APT::Install-Suggests "0";" >> /etc/apt/apt.conf.d/10norecommends \
  && apt-get update \
  && apt-get install \
             --yes \
             --fix-missing \
             bash \
+            ca-certificates \
             default-jre-headless \
  && false
 

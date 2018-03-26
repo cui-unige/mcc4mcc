@@ -1,7 +1,8 @@
-FROM debian:stable-slim
+FROM mccpetrinets/ltsmin
 
 RUN true \
- && mkdir -p /usr/share/man/man1/ \
+ && echo "APT::Install-Recommends "0";" >> /etc/apt/apt.conf.d/10norecommends \
+ && echo "APT::Install-Suggests "0";"   >> /etc/apt/apt.conf.d/10norecommends \
  && apt-get update \
  && apt-get install \
             --yes \
@@ -9,10 +10,9 @@ RUN true \
             autoconf \
             automake \
             bash \
-            bison \
+            ca-certificates \
             cmake \
             curl \
-            flex \
             gcc \
             g++ \
             git \
@@ -20,30 +20,12 @@ RUN true \
             libgmpxx4ldbl \
             libgmp10 \
             libgmp-dev \
-            libpopt0 \
-            libpopt-dev \
-            python \
-            python-dev \
+            make \
+            python2.7 \
+            python2.7-dev \
             z3 \
-            zlib1g-dev \
             default-jre-headless \
- && curl https://yanntm.github.io/ITS-commandline/itscl_linux.tgz \
-         --output itscl_linux.tgz \
-    && tar xf itscl_linux.tgz \
-    && mv eclipse /usr/share/itscl \
-    && rm -f itscl_linux.tgz \
-    && rm -f runeclipse.sh \
- && curl -L https://github.com/utwente-fmt/ltsmin/releases/download/2.1/ltsmin-2.1.tar.gz \
-            --output ltsmin-2.1.tar.gz \
-    && tar xf ltsmin-2.1.tar.gz \
-    && cd ltsmin-2.1 \
-    && sed -i".bak" "s/sysconf(_SC_LEVEL1_DCACHE_LINESIZE)/0/g" src/hre/hre_runtime.c \
-    && ./configure --prefix=/usr \
-    && make check \
-    && make install \
-    && cd .. \
-    && rm -rf ltsmin-2.1* \
- && git clone https://github.com/SRI-CSL/libpoly.git \
+ && git clone --depth=1 https://github.com/SRI-CSL/libpoly.git \
     && mkdir -p libpoly/build \
     && cd libpoly/build \
     && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
@@ -51,7 +33,7 @@ RUN true \
     && make install \
     && cd ../.. \
     && rm -rf libpoly* \
- && git clone https://github.com/SRI-CSL/yices2.git \
+ && git clone --depth=1 https://github.com/SRI-CSL/yices2.git \
     && cd yices2 \
     && autoconf \
     && ./configure --prefix=/usr --enable-mcsat \
@@ -59,21 +41,26 @@ RUN true \
     && make install \
     && cd .. \
     && rm -rf yices2* \
+ && curl https://yanntm.github.io/ITS-commandline/itscl_linux.tgz \
+         --output itscl_linux.tgz \
+    && tar xf itscl_linux.tgz \
+    && mv eclipse /usr/share/itscl \
+    && rm -f itscl_linux.tgz \
+    && rm -f runeclipse.sh \
  && apt-get purge \
             --yes \
             autoconf \
             automake \
-            bison \
+            ca-certificates \
             cmake \
             curl \
-            flex \
             gcc \
             g++ \
             git \
+            gperf \
             libgmp-dev \
-            libpopt-dev \
-            python-dev \
-            zlib1g-dev \
+            make \
+            python2.7-dev \
  && apt-get autoremove \
             --yes \
  && apt-get clean \
