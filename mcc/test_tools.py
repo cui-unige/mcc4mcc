@@ -34,6 +34,12 @@ if __name__ == "__main__":
         dest="data",
         default=os.getcwd(),
     )
+    PARSER.add_argument(
+        "--tool",
+        help="only tool to test",
+        type=str,
+        dest="tool",
+    )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -60,6 +66,8 @@ if __name__ == "__main__":
                 for entry in entries["sorted"]:
                     tool = entry["tool"]
                     if tool in TESTED[examination]:
+                        continue
+                    if ARGUMENTS.tool is not None and tool != ARGUMENTS.tool:
                         continue
                     directory = f"{PATH}/{instance}"
                     if not os.path.isdir(directory):
