@@ -797,6 +797,13 @@ if __name__ == "__main__":
             for key in ["time", "memory"]:
                 if data[key]:
                     data[key] = statistics.mean(data[key])
+        score["Total"] = {}
+        for key in ["time", "memory"]:
+            full_score = 0
+            for examination, data in score.items():
+                if examination != "Total" and data[key]:
+                    full_score += data[key]
+            score["Total"][key] = int(full_score)
         return score
 
     DISTANCES = {}
@@ -940,7 +947,12 @@ if __name__ == "__main__":
                 srt = sorted(srt, key=lambda e: (
                     e["examination"], e["distance"], e["name"]
                 ), reverse=False)
-                for element in srt:
+                for element in [x for x in srt if x["examination"] == "Total"]:
+                    exa = element["examination"]
+                    dst = element["distance"] / best[exa]["distance"]
+                    name = element["name"]
+                    logging.info(f"  In {exa} : {dst} ({key}) for {name}.")
+                for element in [x for x in srt if x["examination"] != "Total"]:
                     exa = element["examination"]
                     dst = element["distance"] / best[exa]["distance"]
                     name = element["name"]
