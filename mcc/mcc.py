@@ -129,8 +129,8 @@ if __name__ == "__main__":
                 f"Extracting archive '{ARGUMENTS.input}' "
                 f"to temporary directory '{DIRECTORY}'.")
             with tarfile.open(name=ARGUMENTS.input) as tar:
-                tar.extractall(path=DIRECTORY)
-            ARGUMENTS.input = DIRECTORY
+                tar.extractall(path=DIRECTORY.name)
+            ARGUMENTS.input = DIRECTORY.name
         elif os.path.isdir(ARGUMENTS.input):
             if os.path.isfile(ARGUMENTS.input + "/model.pnml"):
                 logging.info(
@@ -259,7 +259,7 @@ if __name__ == "__main__":
             if key.startswith("BK_"):
                 command.append("--env")
                 command.append(f"{key}={value}")
-        command.append(f"mcc/{tool}".lower())
+        command.append(f"mccpetrinets/{tool}".lower())
         logging.info(f"Running {command}.")
         SUCCESS = subprocess.call(command)
         if SUCCESS == 0:
