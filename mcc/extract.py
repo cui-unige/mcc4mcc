@@ -346,6 +346,12 @@ if __name__ == "__main__":
         dest="output_dt",
         default=False,
     )
+    PARSER.add_argument(
+        "--year",
+        help="Use results for a specific year (YYYY format).",
+        type=int,
+        dest="year",
+    )
     ARGUMENTS = PARSER.parse_args()
     logging.basicConfig(
         level=logging.INFO,
@@ -457,6 +463,10 @@ if __name__ == "__main__":
                     entry = {}
                     for i, result in enumerate(RESULT_KEYS):
                         entry[result] = value_of(row[i])
+                    if ARGUMENTS.year is not None \
+                            and ARGUMENTS.year != entry["Year"]:
+                        counter.update(1)
+                        continue
                     if entry["Time OK"] \
                             and entry["Memory OK"] \
                             and entry["Status"] == "normal" \
