@@ -11,6 +11,7 @@ import getpass
 import json
 import pathlib
 import pickle
+import platform
 import re
 import sys
 import tempfile
@@ -46,6 +47,14 @@ VERDICTS = {
     "LIVE": "Live",
 }
 
+RENAMING = {
+    "tapaalPAR": "tapaal",
+    "tapaalSEQ": "tapaal",
+    "tapaalEXP": "tapaal",
+    "sift": "tina",
+    "tedd": "tina",
+}
+
 
 def unarchive(filename):
     """
@@ -56,10 +65,13 @@ def unarchive(filename):
             directory = tempfile.TemporaryDirectory()
             logging.info(
                 f"Extracting archive '{filename}' "
-                f"to temporary directory '{directory}'.")
+                f"to temporary directory '{directory.name}'.")
             with tarfile.open(name=filename) as tar:
                 tar.extractall(path=directory.name)
-            filename = directory.name
+            if platform.system() == "Darwin":
+                filename = "/private" + directory.name
+            else:
+                filename = directory.name
         elif os.path.isdir(filename):
             if os.path.isfile(filename + "/model.pnml"):
                 logging.info(
@@ -67,15 +79,19 @@ def unarchive(filename):
                     f"as it contains a 'model.pnml' file.")
                 break
             else:
-                logging.error(
-                    f"Cannot use directory '{filename}' for input, "
-                    f"as it does not contain a 'model.pnml' file.")
-                sys.exit(1)
+                parts = os.listdir(filename)
+                if len(parts) == 1:
+                    filename = filename + "/" + parts[0]
+                else:
+                    logging.error(
+                        f"Cannot use directory '{filename}' for input, "
+                        f"as it does not contain a 'model.pnml' file.")
+                    return None
         else:
             logging.error(
                 f"Cannot use directory '{filename}' for input, "
                 f"as it does not contain a 'model.pnml' file.")
-            sys.exit(1)
+            return None
     return filename
 
 
@@ -93,13 +109,7 @@ def do_extract(arguments):
     data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
-        "renaming": {
-            "tapaalPAR": "tapaal",
-            "tapaalSEQ": "tapaal",
-            "tapaalEXP": "tapaal",
-            "sift": "tina",
-            "tedd": "tina",
-        },
+        "renaming": RENAMING,
     })
     # Read data:
     logging.info(
@@ -112,6 +122,7 @@ def do_extract(arguments):
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
+    # Filter by year:
     if arguments.year is not None:
         logging.info(
             f"Filtering year '{arguments.year}'."
@@ -328,66 +339,93 @@ def do_test(arguments):
     """
     Main function for the test command.
     """
+    data = Data({
+        "characteristics": arguments.characteristics,
+        "results": arguments.results,
+        "renaming": RENAMING,
+    })
+    # Read data:
     logging.info(
-        f"Reading known information in '{arguments.data}/known.json'.")
-    with open(f"{arguments.data}/known.json", "r") as i:
-        known_data = json.load(i)
+        f"Reading model characteristics from '{arguments.characteristics}'."
+    )
+    data.characteristics()
+    logging.info(
+        f"Reading mcc results from '{arguments.results}'."
+    )
+    data.results()
+    # Filter by year:
+    if arguments.year is not None:
+        logging.info(
+            f"Filtering year '{arguments.year}'."
+        )
+        data.filter(lambda e: e["Year"] == arguments.year)
+    results = data.results()
+    examinations = {x["Examination"] for x in results}
+    tools = {x["Tool"] for x in results}
+    # Use arguments:
+    path = arguments.models
+    if arguments.tool is not None:
+        tools = [arguments.tool]
     # Load docker client:
     client = docker.from_env()
     client.login(
         username=input("Docker username: "),
         password=getpass.getpass("Docker password: "),
     )
-    #
-    path = os.path.abspath(arguments.models)
     tested = {}
-    test_tool = arguments.tool
-    for examination, what in known_data.items():
-        if examination not in tested:
-            tested[examination] = {}
-        for instance, entries in what.items():
-            for entry in entries:
-                tool = entry["Tool"]
-                if entry["Count"] \
-                        or tool in tested[examination] \
-                        or (test_tool is not None and tool != test_tool):
-                    continue
-                directory = unarchive(f"{path}/{instance}.tgz")
-                try:
-                    logging.info(f"{examination} {tool} {instance}...")
-                    # client.images.pull(f"mccpetrinets/{tool.lower()}")
-                    logs = client.containers.run(
-                        image=f"mccpetrinets/{tool.lower()}",
-                        auto_remove=True,
-                        stdout=True,
-                        stderr=True,
-                        detach=False,
-                        working_dir="/mcc-data",
-                        volumes={
-                            f"{directory}": {
-                                "bind": "/mcc-data",
-                                "mode": "rw",
-                            },
+    for examination in examinations:
+        tested[examination] = {}
+        for tool in tools:
+            srt = sorted([
+                entry for entry in results
+                if entry["Examination"] == examination
+                and entry["Tool"] == tool
+            ], key=lambda e: e["Time"])
+            if not srt:
+                logging.info(f"No test available for {examination} {tool}.")
+                continue
+            instance = srt[0]["Instance"]
+            directory = unarchive(f"{path}/{instance}.tgz")
+            logging.info(f"Testing {examination} {tool} with {instance}...")
+            try:
+                # client.images.pull(f"mccpetrinets/{tool.lower()}")
+                logs = client.containers.run(
+                    image=f"mccpetrinets/{tool.lower()}",
+                    command="mcc-head",
+                    auto_remove=True,
+                    stdout=True,
+                    stderr=True,
+                    detach=False,
+                    working_dir="/mcc-data",
+                    volumes={
+                        f"{directory}": {
+                            "bind": "/mcc-data",
+                            "mode": "rw",
                         },
-                        environment={
-                            "BK_LOG_FILE": "/mcc-data/log",
-                            "BK_examination": f"{examination}",
-                            "BK_TIME_CONFINEMENT": "3600",
-                            "BK_INPUT": f"{instance}",
-                            "BK_TOOL": tool.lower(),
-                        },
-                    )
-                    logging.info(logs)
-                    tested[examination][tool] = True
-                except docker.errors.ContainerError as error:
-                    logging.error(f"  Failure", error)
-                    tested[examination][tool] = False
-                except docker.errors.ImageNotFound as error:
-                    logging.error(f"  Unexpected error", error)
-                    tested[examination][tool] = False
-                except docker.errors.APIError as error:
-                    logging.error(f"  Unexpected error", error)
-                    tested[examination][tool] = False
+                    },
+                    environment={
+                        "BK_LOG_FILE": "/mcc-data/log",
+                        "BK_examination": f"{examination}",
+                        "BK_TIME_CONFINEMENT": "3600",
+                        "BK_INPUT": f"{instance}",
+                        "BK_TOOL": tool.lower(),
+                    },
+                )
+                logging.info(logs)
+                tested[examination][tool] = True
+            except docker.errors.ContainerError as error:
+                logging.error(f"  Failure", error)
+                tested[examination][tool] = False
+            except docker.errors.ImageNotFound as error:
+                logging.error(f"  Unexpected error", error)
+                tested[examination][tool] = False
+            except docker.errors.APIError as error:
+                logging.error(f"  Unexpected error", error)
+                tested[examination][tool] = False
+    for examination, subresults in tested.items():
+        logging.error(f"Tests for {examination}:")
+        for tool, value in subresults.items():
+            logging.error(f"  {tool}: {value}")
 
 
 logging.basicConfig(
@@ -447,6 +485,45 @@ EXTRACT.add_argument(
 )
 EXTRACT.set_defaults(func=do_extract)
 
+TEST = SUBPARSERS.add_parser(
+    "test",
+    description="Test",
+)
+TEST.add_argument(
+    "--results",
+    help="results of the model checking contest",
+    type=str,
+    dest="results",
+    default=os.getcwd() + "/results.csv",
+)
+TEST.add_argument(
+    "--characteristics",
+    help="model characteristics from the Petri net repository",
+    type=str,
+    dest="characteristics",
+    default=os.getcwd() + "/characteristics.csv",
+)
+TEST.add_argument(
+    "--year",
+    help="Use results for a specific year (YYYY format).",
+    type=int,
+    dest="year",
+)
+TEST.add_argument(
+    "--models",
+    help="directory containing all models",
+    type=str,
+    dest="models",
+    default=os.getcwd() + "/models",
+)
+TEST.add_argument(
+    "--tool",
+    help="only tool to test",
+    type=str,
+    dest="tool",
+)
+TEST.set_defaults(func=do_test)
+
 RUN = SUBPARSERS.add_parser(
     "run",
     description="Runner",
@@ -466,24 +543,6 @@ RUN.add_argument(
     default=os.getenv("BK_examination"),
 )
 RUN.set_defaults(func=do_run)
-
-TEST = SUBPARSERS.add_parser(
-    "test",
-    description="Test",
-)
-TEST.add_argument(
-    "--models",
-    help="directory containing all models",
-    type=str,
-    dest="models",
-    default=os.getcwd() + "/models",
-)
-TEST.add_argument(
-    "--tool",
-    help="only tool to test",
-    type=str,
-    dest="tool",
-)
 
 ARGUMENTS = PARSER.parse_args()
 if "func" in ARGUMENTS:
