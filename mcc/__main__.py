@@ -12,8 +12,6 @@ import json
 import pathlib
 import pickle
 import re
-import readline
-import subprocess
 import sys
 import tempfile
 import tarfile
@@ -21,8 +19,32 @@ import pandas
 import xmltodict
 import docker
 
-import mcc.analysis
-import mcc.model
+from mcc.analysis import known, learned, score_of, max_score
+from mcc.model import Values, Data, value_of
+
+
+VERDICTS = {
+    "ORDINARY": "Ordinary",
+    "SIMPLE_FREE_CHOICE": "Simple Free Choice",
+    "EXTENDED_FREE_CHOICE": "Extended Free Choice",
+    "STATE_MACHINE": "State Machine",
+    "MARKED_GRAPH": "Marked Graph",
+    "CONNECTED": "Connected",
+    "STRONGLY_CONNECTED": "Strongly Connected",
+    "SOURCE_PLACE": "Source Place",
+    "SINK_PLACE": "Sink Place",
+    "SOURCE_TRANSITION": "Source Transition",
+    "SINK_TRANSITION": "Sink Transition",
+    "LOOP_FREE": "Loop Free",
+    "CONSERVATIVE": "Conservative",
+    "SUBCONSERVATIVE": "Sub-Conservative",
+    "NESTED_UNITS": "Nested Units",
+    "SAFE": "Safe",
+    "DEADLOCK": "Deadlock",
+    "REVERSIBLE": "Reversible",
+    "QUASI_LIVE": "Quasi Live",
+    "LIVE": "Live",
+}
 
 
 def unarchive(filename):
@@ -57,11 +79,18 @@ def unarchive(filename):
     return filename
 
 
+def read_boolean(filename):
+    """Read a Boolean file from the MCC."""
+    with open(filename, "r") as boolfile:
+        what = boolfile.readline().strip()
+        return value_of(what)
+
+
 def do_extract(arguments):
     """
     Main function for the extract command.
     """
-    data = mcc.model.Data({
+    data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": {
@@ -72,6 +101,7 @@ def do_extract(arguments):
             "tedd": "tina",
         },
     })
+    # Read data:
     logging.info(
         f"Reading model characteristics from '{arguments.characteristics}'."
     )
@@ -80,57 +110,82 @@ def do_extract(arguments):
         f"Reading mcc results from '{arguments.results}'."
     )
     data.results()
+    examinations = {x["Examination"] for x in data.results()}
+    tools = {x["Tool"] for x in data.results()}
     if arguments.year is not None:
         logging.info(
             f"Filtering year '{arguments.year}'."
         )
         data.filter(lambda e: e["Year"] == arguments.year)
+    # Compute maximum score:
+    logging.info(f"Maximum score is {max_score(data)}.")
+    # Extract known data:
     logging.info(
         f"Analyzing known data."
     )
-    known = mcc.analysis.known(data)
+    known_data = known(data)
     with open(f"{arguments.data}/known.json", "w") as output:
-        json.dump(known, output)
+        json.dump(known_data, output)
+    # Extract learned data:
+    logging.info(
+        f"Analyzing learned data."
+    )
+    learned_data = learned(data, {
+        "Duplicates": arguments.duplicates,
+        "Output Trees": arguments.output_trees,
+    })
+    with open(f"{arguments.data}/learned.json", "w") as output:
+        json.dump(learned_data, output)
+    # Compute scores for tools:
+    for tool in tools:
+        logging.info(f"Computing score of tool: '{tool}'.")
+        score = score_of(data, tool)
+        subresult = {
+            "Algorithm": tool,
+        }
+        total = 0
+        for key, value in score.items():
+            subresult[key] = value
+            total = total + value
+        learned_data.append(subresult)
+        logging.info(f"  Score: {total}")
+    # Output per-examination scores:
+    srt = []
+    for subresult in learned_data:
+        for examination in examinations:
+            srt.append({
+                "Name": subresult["Algorithm"],
+                "Examination": examination,
+                "Score": subresult[examination],
+            })
+    srt = sorted(srt, key=lambda e: (
+        e["Examination"], e["Score"], e["Name"]
+    ), reverse=True)
+    for element in srt:
+        examination = element["Examination"]
+        score = element["Score"]
+        name = element["Name"]
+        logging.info(f"In {examination} : {score} for {name}.")
 
 
 def do_run(arguments):
     """
     Main function for the run command.
     """
-    verdicts = {
-        "ORDINARY": "Ordinary",
-        "SIMPLE_FREE_CHOICE": "Simple Free Choice",
-        "EXTENDED_FREE_CHOICE": "Extended Free Choice",
-        "STATE_MACHINE": "State Machine",
-        "MARKED_GRAPH": "Marked Graph",
-        "CONNECTED": "Connected",
-        "STRONGLY_CONNECTED": "Strongly Connected",
-        "SOURCE_PLACE": "Source Place",
-        "SINK_PLACE": "Sink Place",
-        "SOURCE_TRANSITION": "Source Transition",
-        "SINK_TRANSITION": "Sink Transition",
-        "LOOP_FREE": "Loop Free",
-        "CONSERVATIVE": "Conservative",
-        "SUBCONSERVATIVE": "Sub-Conservative",
-        "NESTED_UNITS": "Nested Units",
-        "SAFE": "Safe",
-        "DEADLOCK": "Deadlock",
-        "REVERSIBLE": "Reversible",
-        "QUASI_LIVE": "Quasi Live",
-        "LIVE": "Live",
-    }
+    # Load known info:
     logging.info(
         f"Reading known information in '{arguments.data}/known.json'."
     )
     with open(f"{arguments.data}/known.json", "r") as i:
-        known = json.load(i)
-    # logging.info(
-    #     f"Reading learned information in '{arguments.data}/learned.json'."
-    # )
-    # with open(f"{arguments.data}/learned.json", "r") as i:
-    #     learned = json.load(i)
-    #     # FIXME
-    #     # extract.translate.ITEMS = learned["translation"]
+        known_data = json.load(i)
+    # Load learned info:
+    logging.info(
+        f"Reading learned information in '{arguments.data}/learned.json'."
+    )
+    with open(f"{arguments.data}/learned.json", "r") as i:
+        learned_data = json.load(i)
+    values = Values(learned_data["Translation"])
+    # Find input:
     arguments.input = unarchive(arguments.input)
     last = pathlib.PurePath(arguments.input).stem
     split = re.search(r"([^-]+)\-([^-]+)\-([^-]+)$", last)
@@ -143,69 +198,84 @@ def do_run(arguments):
     logging.info(f"Using '{instance}' as instance name.")
     logging.info(f"Using '{model}' as model name.")
     examination = arguments.examination
+    # Find known tools:
     known_tools = None
-    if known[examination] is not None:
-        if known[examination][instance] is not None:
-            known_tools = known[examination][instance]
-        elif known[examination][model] is not None:
-            known_tools = known[examination][model]
+    if known_data[examination] is not None:
+        if known_data[examination][instance] is not None:
+            known_tools = known_data[examination][instance]
+        elif known_data[examination][model] is not None:
+            known_tools = known_data[examination][model]
     if known_tools is None:
         logging.warning(
             f"Cannot find known information for examination '{examination}' "
             f"on instance '{instance}' or model '{model}'.")
+    # Find algorithm:
+    if arguments.algorithm is None:
+        algorithm = sorted(
+            learned_data["Algorithms"],
+            key=lambda e: e[arguments.examination],
+            reverse=True,
+        )[0]["Algorithm"]
+    else:
+        algorithm = arguments.algorithm
+    logging.info(f"Using machine learning algorithm '{algorithm}'.")
+    with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
+        model = pickle.load(i)
+    # Find learned tools:
     learned_tools = None
-    # IS_COLORED = read_boolean(f"{arguments.input}/iscolored")
-    # if IS_COLORED:
-    #     HAS_PT = read_boolean(f"{arguments.input}/equiv_pt")
-    # else:
-    #     HAS_COLORED = read_boolean(f"{arguments.input}/equiv_col")
-    # with open(f"{arguments.input}/GenericPropertiesVerdict.xml", "r") as i:
-    #     VERDICT = xmltodict.parse(i.read())
-    # CHARACTERISTICS = {
-    #     "Examination": examination,
-    #     "Place/Transition": (not IS_COLORED) or HAS_PT,
-    #     "Colored": IS_COLORED or HAS_COLORED,
-    # }
-    # for v in VERDICT["toolspecific"]["verdict"]:
-    #     if v["@value"] == "true":
-    #         CHARACTERISTICS[verdicts[v["@reference"]]] = True
-    #     elif v["@value"] == "false":
-    #         CHARACTERISTICS[verdicts[v["@reference"]]] = False
-    #     else:
-    #         CHARACTERISTICS[verdicts[v["@reference"]]] = None
-    # logging.info(f"Model characteristics are: {CHARACTERISTICS}.")
-    # with open(f"{arguments.data}/learned.{ALGORITHM}.p", "rb") as i:
-    #     model = pickle.load(i)
-    # TEST = {}
-    # for key, value in CHARACTERISTICS.items():
-    #     TEST[key] = processing.translate(value)
-    # # http://scikit-learn.org/stable/modules/model_persistence.html
-    # PREDICTED = model.predict(pandas.DataFrame([TEST]))
-    # learned_tools = [{"tool": processing.translate_back(PREDICTED[0])}]
-    # logging.info(f"Known tools are: {known_tools}.")
-    # logging.info(f"Learned tool is: {learned_tools[0]}.")
-    # if known_tools is not None and learned_tools is not None:
-    #     learned = learned_tools[0]
-    #     BEST = known_tools[0]
-    #     DISTANCE = None
-    #     for entry in known_tools:
-    #         if entry["tool"] == learned["tool"]:
-    #             learned_tool = entry["tool"]
-    #             best_tool = BEST["tool"]
-    #             DISTANCE = entry["time"] / BEST["time"]
-    #             logging.info(f"Learned tool {learned_tool} is {DISTANCE} "
-    #                          f"far from the best tool {best_tool}.")
-    #             break
-    #     if DISTANCE is None:
-    #         logging.info(f"Learned tool does not appear within known.")
-    # elif known_tools is None:
-    #     logging.warning(f"No known information "
-    #                     f"for examination '{examination}' "
-    #                     f"on instance '{instance}' or model '{model}'.")
-    # elif learned_tools is None:
-    #     logging.warning(f"No learned information "
-    #                     f"for examination '{examination}' "
-    #                     f"on instance '{instance}' or model '{model}'.")
+    is_colored = read_boolean(f"{arguments.input}/iscolored")
+    if is_colored:
+        has_pt = read_boolean(f"{arguments.input}/equiv_pt")
+    else:
+        has_colored = read_boolean(f"{arguments.input}/equiv_col")
+    with open(f"{arguments.input}/GenericPropertiesVerdict.xml", "r") as i:
+        verdict = xmltodict.parse(i.read())
+    characteristics = {
+        "Examination": examination,
+        "Place/Transition": (not is_colored) or has_pt,
+        "Colored": is_colored or has_colored,
+    }
+    for value in verdict["toolspecific"]["verdict"]:
+        if value["@value"] == "true":
+            characteristics[VERDICTS[value["@reference"]]] = True
+        elif value["@value"] == "false":
+            characteristics[VERDICTS[value["@reference"]]] = False
+        else:
+            characteristics[VERDICTS[value["@reference"]]] = None
+    logging.info(f"Model characteristics are: {characteristics}.")
+    # Load characteristics for machine learning:
+    test = {}
+    for key, value in characteristics.items():
+        test[key] = values.to_learning(value)
+    # http://scikit-learn.org/stable/modules/model_persistence.html
+    predicted = model.predict(pandas.DataFrame([test]))
+    learned_tools = [{"tool": values.from_learning(predicted[0])}]
+    logging.info(f"Known tools are: {known_tools}.")
+    logging.info(f"Learned tools are: {learned_tools}.")
+    # Evaluate quality of learned tool:
+    if known_tools is not None and learned_tools is not None:
+        found = learned_tools[0]
+        best = known_tools[0]
+        distance = None
+        for entry in known_tools:
+            if entry["Tool"] == found["Tool"]:
+                found_tool = entry["Tool"]
+                best_tool = best["Tool"]
+                distance = entry["Time"] / best["Time"]
+                logging.info(f"Learned tool {found_tool} is {distance} "
+                             f"far from the best tool {best_tool}.")
+                break
+        if distance is None:
+            logging.info(f"Learned tool does not appear within known.")
+    elif known_tools is None:
+        logging.warning(f"No known information "
+                        f"for examination '{examination}' "
+                        f"on instance '{instance}' or model '{model}'.")
+    elif learned_tools is None:
+        logging.warning(f"No learned information "
+                        f"for examination '{examination}' "
+                        f"on instance '{instance}' or model '{model}'.")
+    # Run the tools:
     if known_tools is not None:
         tools = known_tools
     elif learned_tools is not None:
@@ -213,15 +283,9 @@ def do_run(arguments):
     else:
         logging.error(f"DO NOT COMPETE")
         sys.exit(1)
-    # Run the tools:
-    success = None
     path = os.path.abspath(arguments.input)
     # Load docker client:
     client = docker.from_env()
-    # client.login(
-    #     username=input("Docker username: "),
-    #     password=getpass.getpass("Docker password: "),
-    # )
     for entry in tools:
         try:
             tool = entry["Tool"]
@@ -242,30 +306,22 @@ def do_run(arguments):
                 },
                 environment={
                     "BK_LOG_FILE": "/mcc-data/log",
-                    "BK_examination": f"{examination}",
+                    "BK_EXAMINATION": f"{examination}",
                     "BK_TIME_CONFINEMENT": "3600",
                     "BK_INPUT": f"{instance}",
                     "BK_TOOL": tool.lower(),
                 },
             )
             logging.info(logs)
-            success = True
-            break
+            sys.exit(0)
         except docker.errors.ContainerError as error:
-            success = False
             logging.error(f"  Failure", error)
         except docker.errors.ImageNotFound as error:
-            success = False
             logging.error(f"  Unexpected error", error)
         except docker.errors.APIError as error:
-            success = False
             logging.error(f"  Unexpected error", error)
-    if success is None:
-        logging.error(f"DO NOT COMPETE")
-        sys.exit(1)
-    if not success:
-        logging.error(f"CANNOT COMPUTE")
-        sys.exit(1)
+    logging.error(f"CANNOT COMPUTE")
+    sys.exit(1)
 
 
 def do_test(arguments):
@@ -275,7 +331,7 @@ def do_test(arguments):
     logging.info(
         f"Reading known information in '{arguments.data}/known.json'.")
     with open(f"{arguments.data}/known.json", "r") as i:
-        known = json.load(i)
+        known_data = json.load(i)
     # Load docker client:
     client = docker.from_env()
     client.login(
@@ -286,7 +342,7 @@ def do_test(arguments):
     path = os.path.abspath(arguments.models)
     tested = {}
     test_tool = arguments.tool
-    for examination, what in known.items():
+    for examination, what in known_data.items():
         if examination not in tested:
             tested[examination] = {}
         for instance, entries in what.items():
@@ -375,6 +431,20 @@ EXTRACT.add_argument(
     type=int,
     dest="year",
 )
+EXTRACT.add_argument(
+    "--duplicates",
+    help="Allow duplicate entries",
+    type=bool,
+    dest="duplicates",
+    default=False,
+)
+EXTRACT.add_argument(
+    "--output-trees",
+    help="Output decision trees",
+    type=bool,
+    dest="output_trees",
+    default=False,
+)
 EXTRACT.set_defaults(func=do_extract)
 
 RUN = SUBPARSERS.add_parser(
@@ -415,53 +485,8 @@ TEST.add_argument(
     dest="tool",
 )
 
-# PARSER.add_argument(
-#     "--learned",
-#     help="data learned from models",
-#     type=str,
-#     dest="learned",
-#     default=os.getcwd() + "/learned.json",
-# )
-# PARSER.add_argument(
-#     "--distance",
-#     help="Allowed distance from the best tool (in percent)",
-#     type=float,
-#     dest="distance",
-# )
-# PARSER.add_argument(
-#     "--duplicates",
-#     help="Allow duplicate entries",
-#     type=bool,
-#     dest="duplicates",
-#     default=False,
-# )
-# PARSER.add_argument(
-#     "--compute-score",
-#     help="Compute score in the Model Checking Contest",
-#     type=bool,
-#     dest="mcc_score",
-#     default=True,
-# )
-# PARSER.add_argument(
-#     "--compute-distance",
-#     help="Compute distance in the Model Checking Contest",
-#     type=bool,
-#     dest="mcc_distance",
-#     default=True,
-# )
-# PARSER.add_argument(
-#     "--useless",
-#     help="Compute useless characteristics",
-#     type=bool,
-#     dest="useless",
-#     default=False,
-# )
-# PARSER.add_argument(
-#     "--output-dt",
-#     help="Output the graph of trained decision tree.",
-#     type=bool,
-#     dest="output_dt",
-#     default=False,
-# )
 ARGUMENTS = PARSER.parse_args()
-ARGUMENTS.func(ARGUMENTS)
+if "func" in ARGUMENTS:
+    ARGUMENTS.func(ARGUMENTS)
+else:
+    PARSER.print_usage()

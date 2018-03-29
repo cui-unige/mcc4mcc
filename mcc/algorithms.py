@@ -19,7 +19,6 @@ from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.neural_network import MLPClassifier
 
 
-# TODO: Describe the behavior within the docstring.
 class BMDT(BaseEstimator, ClassifierMixin):
     """
     Custom classification algorithm
@@ -143,8 +142,6 @@ ALGORITHMS["knn"] = KNeighborsClassifier(
     weights="distance",
     metric=knn_distance,
 )
-# k nearest neighbors is too complex to be used on big data sets:
-ALGORITHMS["knn"]["complex"] = True
 
 ALGORITHMS["bagging-knn"] = BaggingClassifier(
     KNeighborsClassifier(
@@ -156,8 +153,6 @@ ALGORITHMS["bagging-knn"] = BaggingClassifier(
     max_features=1,
     n_estimators=10,
 )
-# k nearest neighbors with bagging is too complex to be used on big data sets:
-ALGORITHMS["bagging-knn"]["complex"] = True
 
 ALGORITHMS["ada-boost"] = AdaBoostClassifier()
 

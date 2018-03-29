@@ -7,10 +7,7 @@ import re
 import itertools
 from tqdm import tqdm
 
-
-CHARACTERISTICS = {}
-
-CHARACTERISTICS["ALL"] = [
+CHARACTERISTICS = [
     "Id",
     "Type",
     "Fixed size",
@@ -40,32 +37,7 @@ CHARACTERISTICS["ALL"] = [
     "Year",
 ]
 
-CHARACTERISTICS["DROPPED"] = [
-    "Ordinary",
-    "Simple Free Choice",
-    "Extended Free Choice",
-    "State Machine",
-    "Marked Graph",
-    "Connected",
-    "Strongly Connected",
-    "Source Place",
-    "Sink Place",
-    "Source Transition",
-    "Sink Transition",
-    "Loop Free",
-    "Conservative",
-    "Sub-Conservative",
-    "Nested Units",
-    "Safe",
-    "Deadlock",
-    "Reversible",
-    "Quasi Live",
-    "Live",
-]
-
-RESULTS = {}
-
-RESULTS["ALL"] = [
+RESULTS = [
     "Year",
     "Tool",
     "Instance",
@@ -83,9 +55,7 @@ RESULTS["ALL"] = [
     "Id",
 ]
 
-TECHNIQUES = {}
-
-TECHNIQUES["ALL"] = []
+TECHNIQUES = []
 
 
 def value_of(what):
@@ -115,7 +85,11 @@ class Values:
     """
     def __init__(self, items):
         if items is None:
-            self.items = {}
+            self.items = {
+                False: -1,
+                None: 0,
+                True: 1,
+            }
             self.next_id = 0
         else:
             self.items = items
@@ -178,7 +152,7 @@ class Data:
                 reader = csv.reader(data)
                 for row in reader:
                     entry = {}
-                    for i, characteristic in enumerate(CHARACTERISTICS["ALL"]):
+                    for i, characteristic in enumerate(CHARACTERISTICS):
                         entry[characteristic] = value_of(row[i])
                     entry["Place/Transition"] = True if re.search(
                         "PT", entry["Type"]) else False
@@ -209,7 +183,7 @@ class Data:
                 reader = csv.reader(data)
                 for row in reader:
                     entry = {}
-                    for i, rentry in enumerate(RESULTS["ALL"]):
+                    for i, rentry in enumerate(RESULTS):
                         entry[rentry] = value_of(row[i])
                     if entry["Time OK"] \
                             and entry["Memory OK"] \
@@ -219,8 +193,8 @@ class Data:
                                 r"([A-Z_]+)",
                                 entry["Techniques"]
                         ):
-                            if technique not in TECHNIQUES["ALL"]:
-                                TECHNIQUES["ALL"].append(technique)
+                            if technique not in TECHNIQUES:
+                                TECHNIQUES.append(technique)
                             entry[technique] = True
                         entry["Surprise"] = True if re.search(
                             r"^S_", entry["Instance"]) else False
@@ -254,7 +228,7 @@ class Data:
         # Set techniques to False if they do not appear within an entry:
         with tqdm(total=len(result)) as counter:
             for entry in result:
-                for technique in TECHNIQUES["ALL"]:
+                for technique in TECHNIQUES:
                     if technique not in entry:
                         entry[technique] = False
                 counter.update(1)

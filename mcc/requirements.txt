@@ -1,9 +1,9 @@
+argparse
+docker
 numpy
-xmltodict
 pandas
-tqdm
-scikit_learn
 pycodestyle
 pylint
-docker
-readline
+scikit_learn
+tqdm
+xmltodict
