@@ -112,13 +112,7 @@ def do_extract(arguments):
         "renaming": RENAMING,
     })
     # Read data:
-    logging.info(
-        f"Reading model characteristics from '{arguments.characteristics}'."
-    )
     data.characteristics()
-    logging.info(
-        f"Reading mcc results from '{arguments.results}'."
-    )
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
@@ -131,22 +125,18 @@ def do_extract(arguments):
     # Compute maximum score:
     logging.info(f"Maximum score is {max_score(data)}.")
     # Extract known data:
-    logging.info(
-        f"Analyzing known data."
-    )
     known_data = known(data)
     with open(f"{arguments.data}/known.json", "w") as output:
         json.dump(known_data, output)
     # Extract learned data:
-    logging.info(
-        f"Analyzing learned data."
-    )
-    learned_data = learned(data, {
+    learned_data, values = learned(data, {
         "Duplicates": arguments.duplicates,
         "Output Trees": arguments.output_trees,
     })
     with open(f"{arguments.data}/learned.json", "w") as output:
         json.dump(learned_data, output)
+    with open(f"{arguments.data}/values.json", "w") as output:
+        json.dump(values.items, output)
     # Compute scores for tools:
     for tool in tools:
         logging.info(f"Computing score of tool: '{tool}'.")
@@ -195,7 +185,14 @@ def do_run(arguments):
     )
     with open(f"{arguments.data}/learned.json", "r") as i:
         learned_data = json.load(i)
-    values = Values(learned_data["Translation"])
+    # Load translations:
+    logging.info(
+        f"Reading value translations in '{arguments.data}/values.json'."
+    )
+    with open(f"{arguments.data}/values.json", "r") as i:
+        translations = json.load(i)
+    print(translations)
+    values = Values(translations)
     # Find input:
     arguments.input = unarchive(arguments.input)
     last = pathlib.PurePath(arguments.input).stem
@@ -223,7 +220,7 @@ def do_run(arguments):
     # Find algorithm:
     if arguments.algorithm is None:
         algorithm = sorted(
-            learned_data["Algorithms"],
+            learned_data,
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
@@ -304,6 +301,8 @@ def do_run(arguments):
             # client.images.pull(f"mccpetrinets/{tool.lower()}")
             logs = client.containers.run(
                 image=f"mccpetrinets/{tool.lower()}",
+                entrypoint="mcc-head",
+                command=[],
                 auto_remove=True,
                 stdout=True,
                 stderr=True,
@@ -345,13 +344,7 @@ def do_test(arguments):
         "renaming": RENAMING,
     })
     # Read data:
-    logging.info(
-        f"Reading model characteristics from '{arguments.characteristics}'."
-    )
     data.characteristics()
-    logging.info(
-        f"Reading mcc results from '{arguments.results}'."
-    )
     data.results()
     # Filter by year:
     if arguments.year is not None:
@@ -391,7 +384,8 @@ def do_test(arguments):
                 # client.images.pull(f"mccpetrinets/{tool.lower()}")
                 logs = client.containers.run(
                     image=f"mccpetrinets/{tool.lower()}",
-                    command="mcc-head",
+                    entrypoint="mcc-head",
+                    command=[],
                     auto_remove=True,
                     stdout=True,
                     stderr=True,

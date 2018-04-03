@@ -2,6 +2,7 @@
 Extract data about models.
 """
 
+import logging
 import csv
 import re
 import itertools
@@ -146,6 +147,9 @@ class Data:
             return self.cache["characteristics"]
         result = {}
         source = self.configuration["characteristics"]
+        logging.info(
+            f"Reading model characteristics from '{source}'."
+        )
         with tqdm(total=sum(1 for line in open(source)) - 1) as counter:
             with open(source) as data:
                 data.readline()  # skip the title line
@@ -177,6 +181,9 @@ class Data:
         result = []
         source = self.configuration["results"]
         characteristics = self.cache["characteristics"]
+        logging.info(
+            f"Reading mcc results from '{source}'."
+        )
         with tqdm(total=sum(1 for line in open(source)) - 1) as counter:
             with open(source) as data:
                 data.readline()  # skip the title line

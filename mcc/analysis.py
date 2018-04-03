@@ -100,6 +100,9 @@ def known(data):
     tools = {x["Tool"] for x in results}
     models = [characteristics[id] for id in {x["Model Id"] for x in results}]
     instances = {x["Instance"] for x in results}
+    logging.info(
+        f"Analyzing known data."
+    )
     with tqdm(total=len(examinations)*len(instances)) as counter:
         for examination in examinations:
             result[examination] = {}
@@ -176,6 +179,9 @@ def learned(data, options):
     examinations = {x["Examination"] for x in results}
     models = [characteristics[id] for id in {x["Model Id"] for x in results}]
     # For each examination and model, select only the good tools:
+    logging.info(
+        f"Analyzing learned data."
+    )
     with tqdm(total=len(examinations)*len(models)) as counter:
         for examination in examinations:
             for model in models:
@@ -249,4 +255,4 @@ def learned(data, options):
                 rounded=True,
                 special_characters=True
             )
-    return result
+    return result, values
