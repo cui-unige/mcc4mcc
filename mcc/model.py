@@ -91,7 +91,7 @@ class Values:
                 None: 0,
                 True: 1,
             }
-            self.next_id = 0
+            self.next_id = 10
         else:
             self.items = items
             self.next_id = sorted(items.keys(), reverse=True)[0] + 1
