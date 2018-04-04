@@ -94,7 +94,7 @@ class Values:
             self.next_id = 10
         else:
             self.items = items
-            self.next_id = sorted(items.keys(), reverse=True)[0] + 1
+            self.next_id = sorted(items.values(), reverse=True)[0]
 
     def to_learning(self, what):
         """
