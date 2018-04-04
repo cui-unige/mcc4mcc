@@ -474,9 +474,8 @@ EXTRACT.add_argument(
 EXTRACT.add_argument(
     "--duplicates",
     help="Allow duplicate entries",
-    type=bool,
     dest="duplicates",
-    default=False,
+    action="store_true"
 )
 EXTRACT.add_argument(
     "--output-trees",
