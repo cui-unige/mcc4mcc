@@ -56,13 +56,18 @@ RENAMING = {
 }
 
 
+temporary = None
+
+
 def unarchive(filename):
     """
     Extract the model from an archive.
     """
+    global temporary
     while True:
         if os.path.isfile(filename):
             directory = tempfile.TemporaryDirectory()
+            temporary = directory
             logging.info(
                 f"Extracting archive '{filename}' "
                 f"to temporary directory '{directory.name}'.")
@@ -191,11 +196,10 @@ def do_run(arguments):
     )
     with open(f"{arguments.data}/values.json", "r") as i:
         translations = json.load(i)
-    print(translations)
     values = Values(translations)
     # Find input:
-    arguments.input = unarchive(arguments.input)
-    last = pathlib.PurePath(arguments.input).stem
+    directory = unarchive(arguments.input)
+    last = pathlib.PurePath(directory).stem
     split = re.search(r"([^-]+)\-([^-]+)\-([^-]+)$", last)
     if split is None:
         instance = last
@@ -206,37 +210,41 @@ def do_run(arguments):
     logging.info(f"Using '{instance}' as instance name.")
     logging.info(f"Using '{model}' as model name.")
     examination = arguments.examination
-    # Find known tools:
+    # Set tool:
     known_tools = None
-    if known_data[examination] is not None:
-        if known_data[examination][instance] is not None:
-            known_tools = known_data[examination][instance]
-        elif known_data[examination][model] is not None:
-            known_tools = known_data[examination][model]
+    if arguments.tool is not None:
+        known_tools = [arguments.tool]
+    else:
+        # Find known tools:
+        if known_data[examination] is not None:
+            if known_data[examination][instance] is not None:
+                known_tools = known_data[examination][instance]
+            elif known_data[examination][model] is not None:
+                known_tools = known_data[examination][model]
     if known_tools is None:
         logging.warning(
             f"Cannot find known information for examination '{examination}' "
             f"on instance '{instance}' or model '{model}'.")
-    # Find algorithm:
-    if arguments.algorithm is None:
+    # Set algorithm:
+    learned_tools = None
+    if arguments.algorithm:
+        algorithm = arguments.algorithm
+    else:
         algorithm = sorted(
             learned_data,
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
-    else:
-        algorithm = arguments.algorithm
     logging.info(f"Using machine learning algorithm '{algorithm}'.")
     with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
         model = pickle.load(i)
     # Find learned tools:
-    learned_tools = None
-    is_colored = read_boolean(f"{arguments.input}/iscolored")
+    is_colored = read_boolean(f"{directory}/iscolored")
     if is_colored:
-        has_pt = read_boolean(f"{arguments.input}/equiv_pt")
+        has_pt = read_boolean(f"{directory}/equiv_pt")
     else:
-        has_colored = read_boolean(f"{arguments.input}/equiv_col")
-    with open(f"{arguments.input}/GenericPropertiesVerdict.xml", "r") as i:
+        has_colored = read_boolean(f"{directory}/equiv_col")
+    with open(f"{directory}/GenericPropertiesVerdict.xml", "r") as i:
         verdict = xmltodict.parse(i.read())
     characteristics = {
         "Examination": examination,
@@ -257,7 +265,7 @@ def do_run(arguments):
         test[key] = values.to_learning(value)
     # http://scikit-learn.org/stable/modules/model_persistence.html
     predicted = model.predict(pandas.DataFrame([test]))
-    learned_tools = [{"tool": values.from_learning(predicted[0])}]
+    learned_tools = [{"Tool": values.from_learning(predicted[0])}]
     logging.info(f"Known tools are: {known_tools}.")
     logging.info(f"Learned tools are: {learned_tools}.")
     # Evaluate quality of learned tool:
@@ -270,7 +278,7 @@ def do_run(arguments):
                 found_tool = entry["Tool"]
                 best_tool = best["Tool"]
                 distance = entry["Time"] / best["Time"]
-                logging.info(f"Learned tool {found_tool} is {distance} "
+                logging.info(f"Learned tool {found_tool} is {distance}x "
                              f"far from the best tool {best_tool}.")
                 break
         if distance is None:
@@ -291,7 +299,7 @@ def do_run(arguments):
     else:
         logging.error(f"DO NOT COMPETE")
         sys.exit(1)
-    path = os.path.abspath(arguments.input)
+    path = os.path.abspath(directory)
     # Load docker client:
     client = docker.from_env()
     for entry in tools:
@@ -534,7 +542,19 @@ RUN.add_argument(
     help="examination type",
     type=str,
     dest="examination",
-    default=os.getenv("BK_examination"),
+    default=os.getenv("BK_EXAMINATION"),
+)
+RUN.add_argument(
+    "--tool",
+    help="tool to use",
+    type=str,
+    dest="tool",
+)
+RUN.add_argument(
+    "--algorithm",
+    help="machine learning algorithm to use",
+    type=str,
+    dest="algorithm",
 )
 RUN.set_defaults(func=do_run)
 
