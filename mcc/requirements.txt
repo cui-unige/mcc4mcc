@@ -1,7 +1,7 @@
--numpy
--xmltodict
--pandas
--tqdm
--scikit_learn
--pycodestyle
--pylint
+numpy
+xmltodict
+pandas
+tqdm
+scikit_learn
+pycodestyle
+pylint
