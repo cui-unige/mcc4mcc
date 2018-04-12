@@ -234,6 +234,8 @@ def learned(data, options):
         logging.info(f"Learning using algorithm: '{name}'.")
         alg_results = {
             "Algorithm": name,
+            "Is-Tool": False,
+            "Is-Algorithm": True,
         }
         algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
         score = score_of(data, algorithm, values)

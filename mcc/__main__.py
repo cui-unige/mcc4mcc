@@ -56,18 +56,20 @@ RENAMING = {
 }
 
 
-temporary = None
+TEMPORARY = None
 
 
 def unarchive(filename):
     """
     Extract the model from an archive.
     """
-    global temporary
+    # pylint: disable=global-statement
+    global TEMPORARY
+    # pylint: enable=global-statement
     while True:
         if os.path.isfile(filename):
             directory = tempfile.TemporaryDirectory()
-            temporary = directory
+            TEMPORARY = directory
             logging.info(
                 f"Extracting archive '{filename}' "
                 f"to temporary directory '{directory.name}'.")
@@ -138,16 +140,14 @@ def do_extract(arguments):
         "Duplicates": arguments.duplicates,
         "Output Trees": arguments.output_trees,
     })
-    with open(f"{arguments.data}/learned.json", "w") as output:
-        json.dump(learned_data, output)
-    with open(f"{arguments.data}/values.json", "w") as output:
-        json.dump(values.items, output)
     # Compute scores for tools:
     for tool in tools:
         logging.info(f"Computing score of tool: '{tool}'.")
         score = score_of(data, tool)
         subresult = {
             "Algorithm": tool,
+            "Is-Tool": True,
+            "Is-Algorithm": False,
         }
         total = 0
         for key, value in score.items():
@@ -155,7 +155,12 @@ def do_extract(arguments):
             total = total + value
         learned_data.append(subresult)
         logging.info(f"  Score: {total}")
-    # Output per-examination scores:
+    # Dump results:
+    with open(f"{arguments.data}/learned.json", "w") as output:
+        json.dump(learned_data, output)
+    with open(f"{arguments.data}/values.json", "w") as output:
+        json.dump(values.items, output)
+    # Print per-examination scores:
     srt = []
     for subresult in learned_data:
         for examination in examinations:
@@ -199,14 +204,12 @@ def do_run(arguments):
     values = Values(translations)
     # Find input:
     directory = unarchive(arguments.input)
-    last = pathlib.PurePath(directory).stem
-    split = re.search(r"([^-]+)\-([^-]+)\-([^-]+)$", last)
-    if split is None:
-        instance = last
-        model = last
+    if arguments.instance is None:
+        instance = pathlib.PurePath(directory).stem
     else:
-        instance = last
-        model = split.group(1)
+        instance = arguments.instance
+    split = re.search(r"([^-]+)\-([^-]+)\-([^-]+)$", instance)
+    model = split.group(1)
     logging.info(f"Using '{instance}' as instance name.")
     logging.info(f"Using '{model}' as model name.")
     examination = arguments.examination
@@ -232,16 +235,37 @@ def do_run(arguments):
     # Set algorithm:
     learned_tools = None
     if arguments.algorithm:
-        algorithm = arguments.algorithm
-    else:
         algorithm = sorted(
-            learned_data,
+            [x for x in learned_data
+             if x["Algorithm"] == arguments.algorithm],
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
-    logging.info(f"Using machine learning algorithm '{algorithm}'.")
-    with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
-        model = pickle.load(i)
+        with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
+            model = pickle.load(i)
+    elif arguments.cheat:
+        algorithm = sorted(
+            [x for x in learned_data if x["Is-Tool"]],
+            key=lambda e: e[arguments.examination],
+            reverse=True,
+        )[0]["Algorithm"]
+
+        # pylint: disable=missing-docstring,no-self-use
+        class Silly:
+            def predict(self, _):
+                return [values.to_learning(algorithm)]
+        # pylint: enable=missing-docstring,no-self-use
+
+        model = Silly()
+    else:
+        algorithm = sorted(
+            [x for x in learned_data if x["Is-Algorithm"]],
+            key=lambda e: e[arguments.examination],
+            reverse=True,
+        )[0]["Algorithm"]
+        with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
+            model = pickle.load(i)
+    logging.info(f"Using algorithm or tool '{algorithm}'.")
     # Find learned tools:
     is_colored = read_boolean(f"{directory}/iscolored")
     if is_colored:
@@ -295,7 +319,7 @@ def do_run(arguments):
                         f"for examination '{examination}' "
                         f"on instance '{instance}' or model '{model}'.")
     # Run the tools:
-    if known_tools is not None:
+    if arguments.cheat and known_tools is not None:
         tools = known_tools
     elif learned_tools is not None:
         tools = learned_tools
@@ -521,10 +545,17 @@ RUN = SUBPARSERS.add_parser(
 )
 RUN.add_argument(
     "--input",
-    help="input directory or archive",
+    help="archive or directory containing the model",
     type=str,
     dest="input",
     default=os.getcwd(),
+)
+RUN.add_argument(
+    "--instance",
+    help="instance name",
+    type=str,
+    dest="instance",
+    default=os.getenv("BK_INPUT"),
 )
 RUN.add_argument(
     "--examination",
@@ -544,6 +575,13 @@ RUN.add_argument(
     help="machine learning algorithm to use",
     type=str,
     dest="algorithm",
+)
+RUN.add_argument(
+    "--cheat",
+    help="Cheat by using known information",
+    dest="cheat",
+    action="store_true",
+    default=os.getenv("BK_TOOL") == "mcc4mcc-cheat"
 )
 RUN.set_defaults(func=do_run)
 
