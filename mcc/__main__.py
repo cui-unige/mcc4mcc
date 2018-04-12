@@ -213,7 +213,11 @@ def do_run(arguments):
     # Set tool:
     known_tools = None
     if arguments.tool is not None:
-        known_tools = [arguments.tool]
+        known_tools = [{
+            "Tool": arguments.tool,
+            "Time": None,
+            "Memory": None,
+        }]
     else:
         # Find known tools:
         if known_data[examination] is not None:
@@ -272,17 +276,16 @@ def do_run(arguments):
     if known_tools is not None and learned_tools is not None:
         found = learned_tools[0]
         best = known_tools[0]
-        distance = None
-        for entry in known_tools:
-            if entry["Tool"] == found["Tool"]:
-                found_tool = entry["Tool"]
-                best_tool = best["Tool"]
-                distance = entry["Time"] / best["Time"]
-                logging.info(f"Learned tool {found_tool} is {distance}x "
-                             f"far from the best tool {best_tool}.")
-                break
-        if distance is None:
-            logging.info(f"Learned tool does not appear within known.")
+        if arguments.tool is None:
+            distance = None
+            for entry in known_tools:
+                if entry["Tool"] == found["Tool"]:
+                    found_tool = entry["Tool"]
+                    best_tool = best["Tool"]
+                    distance = entry["Time"] / best["Time"]
+                    logging.info(f"Learned tool {found_tool} is {distance}x "
+                                 f"far from the best tool {best_tool}.")
+                    break
     elif known_tools is None:
         logging.warning(f"No known information "
                         f"for examination '{examination}' "
@@ -303,41 +306,37 @@ def do_run(arguments):
     # Load docker client:
     client = docker.from_env()
     for entry in tools:
-        try:
-            tool = entry["Tool"]
-            logging.info(f"{examination} {tool} {instance}...")
-            # client.images.pull(f"mccpetrinets/{tool.lower()}")
-            logs = client.containers.run(
-                image=f"mccpetrinets/{tool.lower()}",
-                entrypoint="mcc-head",
-                command=[],
-                auto_remove=True,
-                stdout=True,
-                stderr=True,
-                detach=False,
-                working_dir="/mcc-data",
-                volumes={
-                    f"{path}": {
-                        "bind": "/mcc-data",
-                        "mode": "rw",
-                    },
+        tool = entry["Tool"]
+        logging.info(f"{examination} {tool} {instance}...")
+        # client.images.pull(f"mccpetrinets/{tool.lower()}")
+        container = client.containers.run(
+            image=f"mccpetrinets/{tool.lower()}",
+            command="mcc-head",
+            auto_remove=False,
+            stdout=True,
+            stderr=True,
+            detach=True,
+            working_dir="/mcc-data",
+            volumes={
+                f"{path}": {
+                    "bind": "/mcc-data",
+                    "mode": "rw",
                 },
-                environment={
-                    "BK_LOG_FILE": "/mcc-data/log",
-                    "BK_EXAMINATION": f"{examination}",
-                    "BK_TIME_CONFINEMENT": "3600",
-                    "BK_INPUT": f"{instance}",
-                    "BK_TOOL": tool.lower(),
-                },
-            )
-            logging.info(logs)
+            },
+            environment={
+                "BK_LOG_FILE": "/mcc-data/log",
+                "BK_EXAMINATION": f"{examination}",
+                "BK_TIME_CONFINEMENT": "3600",
+                "BK_INPUT": f"{instance}",
+                "BK_TOOL": tool.lower(),
+            },
+        )
+        result = container.wait()
+        for line in container.logs(stream=True):
+            logging.info(line.decode("UTF-8").strip())
+        container.remove()
+        if result["StatusCode"] == 0:
             sys.exit(0)
-        except docker.errors.ContainerError as error:
-            logging.error(f"  Failure", error)
-        except docker.errors.ImageNotFound as error:
-            logging.error(f"  Unexpected error", error)
-        except docker.errors.APIError as error:
-            logging.error(f"  Unexpected error", error)
     logging.error(f"CANNOT COMPUTE")
     sys.exit(1)
 
@@ -388,42 +387,33 @@ def do_test(arguments):
             instance = srt[0]["Instance"]
             directory = unarchive(f"{path}/{instance}.tgz")
             logging.info(f"Testing {examination} {tool} with {instance}...")
-            try:
-                # client.images.pull(f"mccpetrinets/{tool.lower()}")
-                logs = client.containers.run(
-                    image=f"mccpetrinets/{tool.lower()}",
-                    entrypoint="mcc-head",
-                    command=[],
-                    auto_remove=True,
-                    stdout=True,
-                    stderr=True,
-                    detach=False,
-                    working_dir="/mcc-data",
-                    volumes={
-                        f"{directory}": {
-                            "bind": "/mcc-data",
-                            "mode": "rw",
-                        },
+            container = client.containers.run(
+                image=f"mccpetrinets/{tool.lower()}",
+                command="mcc-head",
+                auto_remove=False,
+                stdout=True,
+                stderr=True,
+                detach=True,
+                working_dir="/mcc-data",
+                volumes={
+                    f"{directory}": {
+                        "bind": "/mcc-data",
+                        "mode": "rw",
                     },
-                    environment={
-                        "BK_LOG_FILE": "/mcc-data/log",
-                        "BK_examination": f"{examination}",
-                        "BK_TIME_CONFINEMENT": "3600",
-                        "BK_INPUT": f"{instance}",
-                        "BK_TOOL": tool.lower(),
-                    },
-                )
-                logging.info(logs)
-                tested[examination][tool] = True
-            except docker.errors.ContainerError as error:
-                logging.error(f"  Failure", error)
-                tested[examination][tool] = False
-            except docker.errors.ImageNotFound as error:
-                logging.error(f"  Unexpected error", error)
-                tested[examination][tool] = False
-            except docker.errors.APIError as error:
-                logging.error(f"  Unexpected error", error)
-                tested[examination][tool] = False
+                },
+                environment={
+                    "BK_LOG_FILE": "/mcc-data/log",
+                    "BK_examination": f"{examination}",
+                    "BK_TIME_CONFINEMENT": "3600",
+                    "BK_INPUT": f"{instance}",
+                    "BK_TOOL": tool.lower(),
+                },
+            )
+            result = container.wait()
+            for line in container.logs(stream=True):
+                logging.info(line.decode("UTF-8").strip())
+            container.remove()
+            tested[examination][tool] = result["StatusCode"] == 0
     for examination, subresults in tested.items():
         logging.error(f"Tests for {examination}:")
         for tool, value in subresults.items():
