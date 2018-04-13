@@ -120,5 +120,6 @@ from-vm/
 # Mac OS:
 .DS_Store
 
-# Models:
+# Models and Tool submission kit:
+ToolSubmissionKit/
 models/
