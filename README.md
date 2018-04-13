@@ -39,6 +39,17 @@ $ python -m mcc run \
     --input=./models/TokenRing-PT-005.tgz
 ```
 
+Models can be obtained in the
+[MCC Submission Kit](https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz).
+
+# Obtaining the tool submission kit and models
+
+The tool submission kit can be downloaded automatically,
+and models extracted from it using the following command:
+
+```sh
+$ ./prepare
+```
 
 # Building the docker images
 
@@ -62,3 +73,5 @@ dedicated to the Model Checking Contest:
 ```sh
 $ ./install
 ```
+
+The virtual machine is created as `mcc4mcc-2018.vmdk`.
