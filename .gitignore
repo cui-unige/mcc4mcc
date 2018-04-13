@@ -106,8 +106,9 @@ venv.bak/
 
 # Generated files for machine learning:
 *.p
-mcc/known.json
-mcc/learned.json
+known.json
+learned.json
+values.json
 
 # Virtual images:
 *.vmdk.bz2
