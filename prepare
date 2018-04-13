@@ -5,6 +5,7 @@ set -e
 # Download the tool submission kit:
 if [ ! -d "ToolSubmissionKit" ]
 then
+  echo "Downloading the tool submission kit."
   curl -L https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz \
        -o ToolSubmissionKit.tar.gz
   tar xf ToolSubmissionKit.tar.gz
@@ -14,6 +15,7 @@ fi
 # Extract the models:
 if [ ! -d models ]
 then
+  echo "Extracting the models from the tool submission kit."
   ## Clean:
   VBoxManage controlvm "mcc4mcc-input" \
     poweroff \
