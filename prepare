@@ -1,0 +1,63 @@
+#! /usr/bin/env bash
+
+set -e
+
+# Download the tool submission kit:
+if [ ! -d "ToolSubmissionKit" ]
+then
+  curl -L https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz \
+       -o ToolSubmissionKit.tar.gz
+  tar xf ToolSubmissionKit.tar.gz
+  rm ToolSubmissionKit.tar.gz
+fi
+
+# Extract the models:
+if [ ! -d models ]
+then
+  ## Clean:
+  VBoxManage controlvm "mcc4mcc-input" \
+    poweroff \
+    || true
+  VBoxManage modifyvm "mcc4mcc-input" \
+    --hda "none" \
+    --hdb "none" \
+    || true
+  VBoxManage unregistervm "mcc4mcc-input" \
+    --delete \
+    || true
+  ## Launch the virtual machine:
+  VBoxManage createvm \
+    --name "mcc4mcc-input" \
+    --ostype "Debian_64" \
+    --register
+  VBoxManage storagectl "mcc4mcc-input" \
+    --name "IDE Controller" \
+    --add "ide" \
+    --bootable "on"
+  VBoxManage modifyvm "mcc4mcc-input" \
+    --description "Model Checker Collection for the Model Checking Contest" \
+    --memory 1024 \
+    --cpus 1 \
+    --hda "$(pwd)/ToolSubmissionKit/mcc2018.vmdk" \
+    --hdb "$(pwd)/ToolSubmissionKit/mcc2018-input.vmdk" \
+    --natpf1 ssh,tcp,,2222,,22
+  VBoxManage startvm "mcc4mcc-input" \
+    --type "headless"
+  ## Copy models:
+  scp \
+    -o "UserKnownHostsFile=/dev/null" \
+    -o "StrictHostKeyChecking=no" \
+    -i "ToolSubmissionKit/bk-private_key" \
+    -P 2222 \
+    -r \
+    mcc@localhost:/home/mcc/BenchKit/INPUTS \
+    models
+  ## Clean:
+  VBoxManage controlvm "mcc4mcc-input" \
+    poweroff
+  VBoxManage modifyvm "mcc4mcc-input" \
+    --hda "none" \
+    --hdb "none"
+  VBoxManage unregistervm "mcc4mcc-input" \
+    --delete
+fi
