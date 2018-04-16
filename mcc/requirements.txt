@@ -1,5 +1,6 @@
 argparse
 docker
+frozendict
 numpy
 pandas
 pycodestyle
