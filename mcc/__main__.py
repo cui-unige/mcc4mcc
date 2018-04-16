@@ -7,7 +7,7 @@ Model Checker Collection for the Model Checking Contest.
 import argparse
 import logging
 import os
-import getpass
+# import getpass
 import json
 import pathlib
 import pickle
@@ -388,56 +388,77 @@ def do_test(arguments):
     tools = {x["Tool"] for x in results}
     # Use arguments:
     path = arguments.models
+    if arguments.examination is not None:
+        examinations = [arguments.examination]
     if arguments.tool is not None:
         tools = [arguments.tool]
     # Load docker client:
     client = docker.from_env()
-    client.login(
-        username=input("Docker username: "),
-        password=getpass.getpass("Docker password: "),
-    )
     tested = {}
     for examination in examinations:
         tested[examination] = {}
         for tool in tools:
-            srt = sorted([
+            instances = sorted([
                 entry for entry in results
                 if entry["Examination"] == examination
                 and entry["Tool"] == tool
             ], key=lambda e: e["Time"])
-            if not srt:
-                logging.info(f"No test available for {examination} {tool}.")
+            if arguments.instance:
+                instances = [{
+                    "Examination": examination,
+                    "Tool": tool,
+                    "Instance": arguments.instance,
+                }]
+            if instances:
+                instance = instances[0]["Instance"]
+                logging.info("")
+                logging.info("==============================================")
+                logging.info(f"Testing {examination} {tool} with {instance}.")
+                logging.info("==============================================")
+                logging.info("")
+            else:
+                logging.info("")
+                logging.info("==============================================")
+                logging.warning(f"No test for {examination} {tool}.")
+                logging.info("==============================================")
+                logging.info("")
                 continue
-            instance = srt[0]["Instance"]
             directory = unarchive(f"{path}/{instance}.tgz")
-            logging.info(f"Testing {examination} {tool} with {instance}...")
-            container = client.containers.run(
-                image=f"mccpetrinets/{tool.lower()}",
-                command="mcc-head",
-                auto_remove=False,
-                stdout=True,
-                stderr=True,
-                detach=True,
-                working_dir="/mcc-data",
-                volumes={
-                    f"{directory}": {
-                        "bind": "/mcc-data",
-                        "mode": "rw",
+            try:
+                container = client.containers.run(
+                    image=f"mccpetrinets/{tool.lower()}",
+                    command="mcc-head",
+                    auto_remove=False,
+                    stdout=True,
+                    stderr=True,
+                    detach=True,
+                    working_dir="/mcc-data",
+                    volumes={
+                        f"{directory}": {
+                            "bind": "/mcc-data",
+                            "mode": "rw",
+                        },
                     },
-                },
-                environment={
-                    "BK_LOG_FILE": "/mcc-data/log",
-                    "BK_examination": f"{examination}",
-                    "BK_TIME_CONFINEMENT": "3600",
-                    "BK_INPUT": f"{instance}",
-                    "BK_TOOL": tool.lower(),
-                },
-            )
-            result = container.wait()
-            for line in container.logs(stream=True):
-                logging.info(line.decode("UTF-8").strip())
-            container.remove()
-            tested[examination][tool] = result["StatusCode"] == 0
+                    environment={
+                        "BK_LOG_FILE": "/mcc-data/log",
+                        "BK_EXAMINATION": f"{examination}",
+                        "BK_TIME_CONFINEMENT": "3600",
+                        "BK_INPUT": f"{instance}",
+                        "BK_TOOL": tool,
+                    },
+                )
+                result = container.wait()
+                print(result)
+                # if result["StatusCode"] == 0:
+                #     tested[examination][tool] = True
+                # else:
+                tested[examination][tool] = result["StatusCode"] == 0
+                for line in container.logs(stream=True):
+                    logging.info(line.decode("UTF-8").strip())
+                container.remove()
+            except docker.errors.NotFound:
+                logging.warning(f"Docker image does not exist.")
+                tested[examination][tool] = False
     for examination, subresults in tested.items():
         logging.error(f"Tests for {examination}:")
         for tool, value in subresults.items():
@@ -536,6 +557,18 @@ TEST.add_argument(
     help="only tool to test",
     type=str,
     dest="tool",
+)
+TEST.add_argument(
+    "--examination",
+    help="examination type",
+    type=str,
+    dest="examination",
+)
+TEST.add_argument(
+    "--instance",
+    help="instance",
+    type=str,
+    dest="instance",
 )
 TEST.set_defaults(func=do_test)
 
