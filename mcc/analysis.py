@@ -4,33 +4,114 @@ Analysis of the results of the model checking contest.
 
 import logging
 import pickle
+import statistics
 import pandas
+from frozendict import frozendict
 from tqdm import tqdm
 from sklearn import tree
 from mcc.model import Values, TECHNIQUES
 from mcc.algorithms import ALGORITHMS
 
 REMOVE = [
-    "Id", "Model Id", "Model", "Instance", "Year",
+    "Id", "Model", "Instance", "Year",
     "Memory", "Time",
     "Parameterised", "Selected", "Surprise",
 ]
 
 
-def score_of(data, alg_or_tool, values=None):
+def characteristics_of(data):
     """
-    Computes a score using the rules from the MCC.
+    Computes the average models per characteristics set.
+    """
+    result = {}
+    all_characteristics = set({})
+    for _, model in data.characteristics().items():
+        for key in model.keys():
+            if key not in data.configuration["forget"]:
+                all_characteristics.add(key)
+    logging.info(f"Characteristics taken into account are:")
+    for char in sorted(all_characteristics):
+        if char != "Id":
+            logging.info(f"  * {char}")
+    result = {}
+    for identifier, model in data.characteristics().items():
+        stripped = dict(model)
+        for characteristic in data.configuration["forget"]:
+            del stripped[characteristic]
+        if "Id" in stripped:
+            del stripped["Id"]
+        stripped = frozendict(stripped)
+        if stripped not in result:
+            result[stripped] = []
+        result[stripped].append(identifier)
+    stats = statistics.mean([len(v) for k, v in result.items()])
+    logging.info(f"Mean models per characteristis set: {stats}.")
+    return result
+
+
+# def characteristics_of(characteristics):
+#     """
+#     Computes the interesting characteristics to remove.
+#     """
+#     result = {}
+#     all_characteristics = set({})
+#     for _, model in characteristics.items():
+#         for key in model.keys():
+#             all_characteristics.add(key)
+#     logging.info(f"Characteristics are:")
+#     for char in sorted(all_characteristics):
+#         logging.info(f"  * {char}")
+#     logging.info(f"  (Id is never taken into account)")
+#     logging.info(f"Computing models per characteristics set.")
+#     all_subsets = [x for x in powerset(all_characteristics)]
+#     with tqdm(total=len(all_subsets)) as counter:
+#         for subset in all_subsets:
+#             subresult = {}
+#             for id, model in characteristics.items():
+#                 stripped = dict(model)
+#                 for characteristic in subset:
+#                     del stripped[characteristic]
+#                 if "Id" in stripped:
+#                     del stripped["Id"]
+#                 stripped = frozendict(stripped)
+#                 if stripped not in subresult:
+#                     subresult[stripped] = []
+#                 subresult[stripped].append(id)
+#             result[subset] = subresult
+#             stats = statistics.mean([len(v) for k,v in subresult.items()])
+#             if stats > 2:
+#                 logging.info(f"  * {subset} ({stats})")
+#             counter.update(1)
+#     return result
+
+
+def choice_of(data, alg_or_tool, values=None):
+    """
+    Computes for each examination the repartition of choices.
     """
     result = {}
     results = data.results()
-    characteristics = data.characteristics()
+    data.characteristics()
     examinations = {x["Examination"] for x in results}
-    models = [characteristics[id] for id in {x["Model Id"] for x in results}]
+    models = {x["Model"] for x in results}
     tools = {x["Tool"] for x in results}
     with tqdm(total=len(examinations)*len(models)) as counter:
         for examination in examinations:
-            result[examination] = 0
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
+            result[examination] = {}
+            for tool in tools:
+                result[examination][tool] = 0
             for model in models:
+                for_model = [
+                    x for x in for_examination
+                    if x["Model"] is model
+                ]
+                if not for_model:
+                    counter.update(1)
+                    continue
                 if alg_or_tool in tools:
                     tool = alg_or_tool
                 elif isinstance(alg_or_tool, str):
@@ -41,7 +122,57 @@ def score_of(data, alg_or_tool, values=None):
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
                     for key, value in model.items():
-                        if key not in REMOVE \
+                        if key in data.configuration["forget"]:
+                            test[key] = values.to_learning(None)
+                        elif key not in REMOVE \
+                                and key not in TECHNIQUES:
+                            test[key] = values.to_learning(value)
+                    dataframe = pandas.DataFrame([test])
+                    predicted = alg_or_tool.predict(dataframe)
+                    tool = values.from_learning(predicted[0])
+                result[examination][tool] += 1
+                counter.update(1)
+    return result
+
+
+def score_of(data, alg_or_tool, values=None):
+    """
+    Computes a score using the rules from the MCC.
+    """
+    result = {}
+    results = data.results()
+    data.characteristics()
+    examinations = {x["Examination"] for x in results}
+    models = {x["Model"] for x in results}
+    tools = {x["Tool"] for x in results}
+    with tqdm(total=len(examinations)*len(models)) as counter:
+        for examination in examinations:
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
+            result[examination] = 0
+            for model in models:
+                for_model = [
+                    x for x in for_examination
+                    if x["Model"] is model
+                ]
+                if not for_model:
+                    counter.update(1)
+                    continue
+                if alg_or_tool in tools:
+                    tool = alg_or_tool
+                elif isinstance(alg_or_tool, str):
+                    tool = alg_or_tool
+                else:
+                    test = {}
+                    if values is None:
+                        values = Values(None)
+                    test["Examination"] = values.to_learning(examination)
+                    for key, value in model.items():
+                        if key in data.configuration["forget"]:
+                            test[key] = values.to_learning(None)
+                        elif key not in REMOVE \
                                 and key not in TECHNIQUES:
                             test[key] = values.to_learning(value)
                     dataframe = pandas.DataFrame([test])
@@ -49,19 +180,12 @@ def score_of(data, alg_or_tool, values=None):
                     tool = values.from_learning(predicted[0])
                 subscore = 0
                 instances = {
-                    x["Instance"] for x in results
-                    if x["Examination"] == examination
-                    and x["Model"] == model
+                    x["Instance"] for x in for_model
                 }
-                if not instances:
-                    counter.update(1)
-                    continue
                 for instance in instances:
                     entries = [
-                        x for x in results
-                        if x["Examination"] == examination
-                        and x["Model"] == model
-                        and x["Instance"] == instance
+                        x for x in for_model
+                        if x["Instance"] == instance
                         and x["Tool"] == tool
                     ]
                     if entries:
@@ -80,9 +204,9 @@ def max_score(data):
     """
     result = 0
     results = data.results()
-    characteristics = data.characteristics()
+    data.characteristics()
     examinations = {x["Examination"] for x in results}
-    models = [characteristics[id] for id in {x["Model Id"] for x in results}]
+    models = {x["Model"] for x in results}
     for _ in examinations:
         for _ in models:
             result += 16
@@ -95,24 +219,27 @@ def known(data):
     """
     result = {}
     results = data.results()
-    characteristics = data.characteristics()
+    data.characteristics()
     examinations = {x["Examination"] for x in results}
     tools = {x["Tool"] for x in results}
-    models = [characteristics[id] for id in {x["Model Id"] for x in results}]
+    models = {x["Model"] for x in results}
     instances = {x["Instance"] for x in results}
     logging.info(
         f"Analyzing known data."
     )
     with tqdm(total=len(examinations)*len(instances)) as counter:
         for examination in examinations:
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
             result[examination] = {}
             # Extract data for all known instances:
             for instance in instances:
                 subresults = []
                 for entry in [
-                        x for x in results
-                        if x["Examination"] == examination
-                        and x["Instance"] == instance
+                        x for x in for_examination
+                        if x["Instance"] == instance
                 ]:
                     subresults.append({
                         "Time": entry["Time"],
@@ -126,12 +253,18 @@ def known(data):
                 counter.update(1)
     with tqdm(total=len(examinations)*len(models)) as counter:
         for examination in examinations:
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
             # Extract data for all known models:
             for model in models:
+                for_model = [
+                    x for x in for_examination
+                    if x["Model"] is model
+                ]
                 all_instances = {
-                    x["Instance"] for x in results
-                    if x["Examination"] == examination
-                    and x["Model"] == model
+                    x["Instance"] for x in for_model
                 }
                 if not all_instances:
                     counter.update(1)
@@ -139,10 +272,8 @@ def known(data):
                 tools_results = []
                 for tool in tools:
                     subresults = [
-                        x for x in results
-                        if x["Examination"] == examination
-                        and x["Model"] == model
-                        and x["Tool"] == tool
+                        x for x in for_model
+                        if x["Tool"] == tool
                     ]
                     count = 0
                     time = 0
@@ -175,13 +306,14 @@ def learned(data, options):
     """
     result = []
     results = data.results()
-    characteristics = data.characteristics()
+    data.characteristics()
     examinations = {x["Examination"] for x in results}
-    models = [characteristics[id] for id in {x["Model Id"] for x in results}]
+    models = {x["Model"] for x in results}
     # For each examination and model, select only the good tools:
     logging.info(
         f"Analyzing learned data."
     )
+    selected = set()
     with tqdm(total=len(examinations)*len(models)) as counter:
         for examination in examinations:
             for model in models:
@@ -189,7 +321,7 @@ def learned(data, options):
                 maximum = 0
                 for entry in results:
                     if entry["Examination"] == examination \
-                            and entry["Model"] == model:
+                            and entry["Model"] is model:
                         tool = entry["Tool"]
                         if tool not in subresults:
                             subresults[tool] = set()
@@ -200,28 +332,31 @@ def learned(data, options):
                     tool = entry["Tool"]
                     if "Selected" not in entry \
                             and entry["Examination"] == examination \
-                            and entry["Model"] == model \
+                            and entry["Model"] is model \
                             and len(subresults[tool]) == maximum:
-                        entry["Selected"] = True
+                        selected.add(entry)
     # Extract selected entries and convert them to machine learning data:
     values = Values(None)
-    selected = []
-    with tqdm(total=len(results)) as counter:
-        for entry in results:
-            if "Selected" not in entry:
-                counter.update(1)
-                continue
+    selection = []
+    with tqdm(total=len(selected)) as counter:
+        for entry in selected:
             s_entry = {}
             for key, value in entry.items():
-                if key not in REMOVE \
+                if key in data.configuration["forget"]:
+                    s_entry[key] = values.to_learning(None)
+                elif key not in REMOVE \
                         and key not in TECHNIQUES:
                     s_entry[key] = values.to_learning(value)
-            selected.append(s_entry)
+            for key, value in entry["Model"].items():
+                if key in data.configuration["forget"]:
+                    s_entry[key] = values.to_learning(None)
+                elif key not in REMOVE:
+                    s_entry[key] = values.to_learning(value)
+            selection.append(s_entry)
             counter.update(1)
-    logging.info(f"Select {len (selected)} best entries of {len(results)}.")
+    logging.info(f"Select {len (selection)} best entries of {len(results)}.")
     # Convert this dict into dataframe:
-    dataframe = pandas.DataFrame(selected)
-    # Drop extra fields in the dataframe:
+    dataframe = pandas.DataFrame(selection)
     # Remove duplicate entries if required:
     if not options["Duplicates"]:
         dataframe = dataframe.drop_duplicates(keep="first")
@@ -238,6 +373,7 @@ def learned(data, options):
             "Is-Algorithm": True,
         }
         algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
+        # Compute score:
         score = score_of(data, algorithm, values)
         total = 0
         for key, value in score.items():
@@ -245,6 +381,17 @@ def learned(data, options):
             total = total + value
         logging.info(f"  Score: {total}")
         result.append(alg_results)
+        # Compute choice:
+        choice = choice_of(data, algorithm, values)
+        for cexamination, ctools in choice.items():
+            srt = sorted(ctools.items(), key=lambda e: e[1], reverse=True)
+            for entry in srt:
+                ctool = entry[0]
+                cvalue = entry[1]
+                if cvalue > 0:
+                    logging.info(f"  {cexamination} - {ctool} is chosen "
+                                 f"{cvalue} times")
+        # Store algorithm:
         with open(f"learned.{name}.p", "wb") as output:
             pickle.dump(algorithm, output)
         # Output decision tree and random forest to graphviz:

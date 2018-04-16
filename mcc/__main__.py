@@ -20,7 +20,8 @@ import pandas
 import xmltodict
 import docker
 
-from mcc.analysis import known, learned, score_of, max_score
+from mcc.analysis import known, learned, score_of, max_score, \
+    characteristics_of
 from mcc.model import Values, Data, value_of
 
 
@@ -54,7 +55,6 @@ RENAMING = {
     "sift": "tina",
     "tedd": "tina",
 }
-
 
 TEMPORARY = None
 
@@ -113,13 +113,21 @@ def do_extract(arguments):
     """
     Main function for the extract command.
     """
+    if arguments.forget is None:
+        arguments.forget = []
+    else:
+        arguments.forget = arguments.forget.split(",")
     data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
+        "forget": arguments.forget,
     })
     # Read data:
     data.characteristics()
+    # Compute the characteristics for models:
+    characteristics_of(data)
+    # Use results:
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
@@ -140,6 +148,8 @@ def do_extract(arguments):
         "Duplicates": arguments.duplicates,
         "Output Trees": arguments.output_trees,
     })
+    with open(f"{arguments.data}/values.json", "w") as output:
+        json.dump(values.items, output)
     # Compute scores for tools:
     for tool in tools:
         logging.info(f"Computing score of tool: '{tool}'.")
@@ -155,11 +165,8 @@ def do_extract(arguments):
             total = total + value
         learned_data.append(subresult)
         logging.info(f"  Score: {total}")
-    # Dump results:
     with open(f"{arguments.data}/learned.json", "w") as output:
         json.dump(learned_data, output)
-    with open(f"{arguments.data}/values.json", "w") as output:
-        json.dump(values.items, output)
     # Print per-examination scores:
     srt = []
     for subresult in learned_data:
@@ -176,7 +183,8 @@ def do_extract(arguments):
         examination = element["Examination"]
         score = element["Score"]
         name = element["Name"]
-        logging.info(f"In {examination} : {score} for {name}.")
+        if score > 0:
+            logging.info(f"In {examination} : {score} for {name}.")
 
 
 def do_run(arguments):
@@ -518,6 +526,12 @@ EXTRACT.add_argument(
     type=bool,
     dest="output_trees",
     default=False,
+)
+EXTRACT.add_argument(
+    "--forget",
+    help="Forget characteristics (comma separated)",
+    dest="forget",
+    default=None,
 )
 EXTRACT.set_defaults(func=do_extract)
 

@@ -6,6 +6,7 @@ import logging
 import csv
 import re
 import itertools
+from frozendict import frozendict
 from tqdm import tqdm
 
 CHARACTERISTICS = [
@@ -162,12 +163,13 @@ class Data:
                         "PT", entry["Type"]) else False
                     entry["Colored"] = True if re.search(
                         "COLORED", entry["Type"]) else False
+                    identifier = entry["Id"]
                     del entry["Type"]
                     del entry["Fixed size"]
                     del entry["Origin"]
                     del entry["Submitter"]
                     del entry["Year"]
-                    result[entry["Id"]] = entry
+                    result[identifier] = frozendict(entry)
                     counter.update(1)
         self.cache["characteristics"] = result
         return result
@@ -210,16 +212,8 @@ class Data:
                                 r"^S_(.*)$", entry["Instance"]).group(1)
                         split = re.search(
                             r"([^-]+)\-([^-]+)\-([^-]+)$", entry["Instance"])
-                        if split is None:
-                            entry["Model Id"] = entry["Instance"]
-                        else:
-                            entry["Model Id"] = split.group(1)
-                        if entry["Model Id"] in characteristics:
-                            model = characteristics[entry["Model Id"]]
-                            entry["Model"] = model
-                            for key in model.keys():
-                                if key != "Id":
-                                    entry[key] = model[key]
+                        model_id = split.group(1)
+                        entry["Model"] = characteristics[model_id]
                         entry["Time"] = entry["Clock Time"]
                         del entry["Time OK"]
                         del entry["Memory OK"]
@@ -246,6 +240,8 @@ class Data:
                 if name in self.configuration["renaming"]:
                     entry["Tool"] = self.configuration["renaming"][name]
                 counter.update(1)
+        # Convert to fronzendict:
+        result = [frozendict(x) for x in result]
         self.cache["results"] = result
         return result
 
