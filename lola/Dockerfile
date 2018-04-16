@@ -1,17 +1,21 @@
-FROM alpine
+FROM alpine:edge
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
         autoconf \
         automake \
         bison \
-        build-base \
         curl \
+        flex \
         gengetopt \
+        libtool \
         make \
+        subversion \
         texinfo \
  && apk add --no-cache \
         bash \
+        build-base \
+        grep \
         libstdc++ \
         man \
  && curl https://www2.informatik.hu-berlin.de/sam/kimwitu++/kimwitu++-2.3.11.tar.gz \
@@ -36,11 +40,44 @@ RUN true \
     && make install \
     && cd .. \
     && rm -rf lola-2.0* \
+ && cd /tmp/lola/sara \
+    && autoreconf -fi \
+    && ./configure --prefix=/usr \
+    && make install \
+    && cd \
+ && cd /tmp/lola/checklarge \
+    && rm -f checklarge *.tab.c lex.yy.c \
+    && make \
+    && install checklarge /usr/bin/ \
+    && cd \
+ && cd /tmp/lola/formula2lola \
+    && rm -f formula2lola *.tab.c lex.yy.c \
+    && sed -i '/stdout/d' formula2lola.y \
+    && make \
+    && install formula2lola /usr/bin/ \
+    && cd \
+ # && cd /tmp/lola/hlformula2lola \
+ #    && rm -f hlformula2lola *.tab.c lex.yy.c \
+ #    && make \
+ #    && install hlformula2lola /usr/bin/ \
+ #    && cd \
+ && cd /tmp/lola/pnml2lola \
+    && rm -f pnml2lola *.tab.c lex.yy.c \
+    && make \
+    && install pnml2lola /usr/bin/ \
+    && cd \
+ && rm -rf /tmp/lola \
  && apk del .build-deps \
  && true
 
-COPY mcc-head         /usr/bin/
-COPY from-vm/Makefile /usr/share/lola/
+COPY from-vm/bin/checklarge/checklarge          /usr/bin/checklarge
+COPY from-vm/bin/formula2lola/formula2lola      /usr/bin/formula2lola
+COPY from-vm/bin/hlformula2lola/hlformula2lola  /usr/bin/hlformula2lola
+COPY from-vm/bin/pnml2lola/pnml2lola            /usr/bin/pnml2lola
+COPY from-vm/bin/sara/sara                      /usr/bin/sara
+COPY from-vm/bin/cpn-linux                      /usr/bin/cpn-linux
+COPY Makefile /usr/share/lola/Makefile
+COPY mcc-head /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
