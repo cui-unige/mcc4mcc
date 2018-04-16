@@ -383,14 +383,18 @@ def learned(data, options):
         result.append(alg_results)
         # Compute choice:
         choice = choice_of(data, algorithm, values)
-        for cexamination, ctools in choice.items():
-            srt = sorted(ctools.items(), key=lambda e: e[1], reverse=True)
+        for examination in sorted(examinations):
+            logging.info(f"  In {examination}:")
+            srt = sorted(
+                choice[examination].items(),
+                key=lambda e: e[1],
+                reverse=True
+            )
             for entry in srt:
-                ctool = entry[0]
-                cvalue = entry[1]
-                if cvalue > 0:
-                    logging.info(f"  {cexamination} - {ctool} is chosen "
-                                 f"{cvalue} times")
+                tool = entry[0]
+                value = entry[1]
+                if value > 0:
+                    logging.info(f"  * {tool} is chosen {value} times")
         # Store algorithm:
         with open(f"learned.{name}.p", "wb") as output:
             pickle.dump(algorithm, output)

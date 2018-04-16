@@ -179,12 +179,13 @@ def do_extract(arguments):
     srt = sorted(srt, key=lambda e: (
         e["Examination"], e["Score"], e["Name"]
     ), reverse=True)
-    for element in srt:
-        examination = element["Examination"]
-        score = element["Score"]
-        name = element["Name"]
-        if score > 0:
-            logging.info(f"In {examination} : {score} for {name}.")
+    for examination in sorted(examinations):
+        logging.info(f"In {examination}:")
+        for element in [x for x in srt if x["Examination"] == examination]:
+            score = element["Score"]
+            name = element["Name"]
+            if score > 0:
+                logging.info(f"* {score} for {name}.")
 
 
 def do_run(arguments):
