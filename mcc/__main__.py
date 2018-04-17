@@ -465,9 +465,9 @@ def do_test(arguments):
                 logging.warning(f"Docker image does not exist.")
                 tested[examination][tool] = False
     for examination, subresults in tested.items():
-        logging.error(f"Tests for {examination}:")
+        logging.info(f"Tests for {examination}:")
         for tool, value in subresults.items():
-            logging.error(f"  {tool}: {value}")
+            logging.info(f"  {tool}: {value}")
 
 
 logging.basicConfig(
