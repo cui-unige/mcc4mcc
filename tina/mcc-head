@@ -1,4 +1,5 @@
 #! /usr/bin/env bash
+set -e
 
 # main for tedd tool
 # run from within execution dir
