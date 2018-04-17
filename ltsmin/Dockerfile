@@ -1,7 +1,5 @@
 FROM debian:stable-slim
 
-COPY from-vm/BenchKit/formulizer.py /usr/bin/
-
 RUN true \
  && echo "APT::Install-Recommends "0";" >> /etc/apt/apt.conf.d/10norecommends \
  && echo "APT::Install-Suggests "0";"   >> /etc/apt/apt.conf.d/10norecommends \
@@ -35,6 +33,8 @@ RUN true \
             perl \
             pdf2svg \
             pkgconf \
+            python \
+            python-dev \
             python3 \
             python3-dev \
             texlive-latex-extra \
@@ -97,6 +97,7 @@ RUN true \
             make \
             pdf2svg \
             pkgconf \
+            python-dev \
             python3-dev \
             texlive-latex-extra \
             texlive-fonts-extra \
@@ -110,7 +111,8 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
-COPY mcc-head /usr/bin/
+COPY formulizer.py /usr/bin/formulizer
+COPY mcc-head      /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]

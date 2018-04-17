@@ -1,46 +1,43 @@
 #! /usr/bin/env bash
-#############################################################################
-# This is an example for the MCC'2015
-#############################################################################
-
-#############################################################################
-# In this script, you will affect values to your tool in order to let
-# BenchKit launch it in an apropriate way.
-#############################################################################
-
-# BK_EXAMINATION: it is a string that identifies your "examination"
+set -e
+set -x
 
 TIME_CONFINEMENT=$((${BK_TIME_CONFINEMENT-3600}-30))
 
-F_PREFIX=${F_PREFIX-"/tmp"}
-mkdir -p "$F_PREFIX"
-F_PREFIX="--prefix=$F_PREFIX"
+F_PREFIX=${PWD}
 
 EXTRA_TECHNIQUES=""
 
 hostname 1>&2
 
-grep "TRUE" iscolored > /dev/null
-if [ $? == 0 ]; then
+(grep "TRUE" iscolored > /dev/null) && {
     echo "DO_NOT_COMPETE"
     exit 1
-fi
+}
+
+pwd ; ls ;
 
 case "$BK_EXAMINATION" in
 
 	StateSpace)
-		{ stderr=$(pnml2lts-sym model.pnml --lace-workers=4 --vset=lddmc --next-union --order=chain-prev --sat-granularity=5 --saturation=sat-like -rw2W,ru,bs,hf \
-		 --sylvan-sizes=28,28,28,28 --maxsum 2>&1 1>&3-) ;} 3>&1
+		{ stderr=$(pnml2lts-sym model.pnml --vset=ldd --next-union --order=chain-prev --sat-granularity=5 --saturation=sat-like -rw2W,ru,hf \
+		 --maxsum 2>&1 1>&3-) ;} 3>&1
 		echo "$stderr" 1>&2
 
-		echo "$stderr" | grep "Got invalid permutation from boost" > /dev/null
+		(echo "$stderr" | grep "Got invalid permutation from boost" > /dev/null) && {
+      echo "CANNOT_COMPUTE"
+      exit 1
+    }
 		if [ $? -eq 0 ]; then
-		    { stderr=$(pnml2lts-sym model.pnml --lace-workers=4 --vset=lddmc --next-union --order=chain-prev --sat-granularity=5 --saturation=sat-like -rw2W,ru,f,rs,hf \
-		    --sylvan-sizes=28,28,28,28 --maxsum 2>&1 1>&3-) ;} 3>&1
+		    { stderr=$(pnml2lts-sym model.pnml --vset=ldd --next-union --order=chain-prev --sat-granularity=5 --saturation=sat-like -rw2W,ru,f,rs,hf \
+		    --maxsum 2>&1 1>&3-) ;} 3>&1
 		    echo "$stderr" 1>&2
 		fi
 
-		echo "$stderr" | grep "Exploration took" > /dev/null
+		(echo "$stderr" | grep "Exploration took" > /dev/null) && {
+      echo "CANNOT_COMPUTE"
+      exit 1
+    }
         not_completed=$?
         if [[ $not_completed == 1 ]]; then
             echo "CANNOT_COMPUTE"
@@ -57,7 +54,7 @@ case "$BK_EXAMINATION" in
 		;;
 
     UpperBounds)
-        line=$(python formulizer.py upper-bounds "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=sym "$F_PREFIX")
+        line=$(formulizer upper-bounds "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=sym)
 
         if [ $? -ne 0 ]; then
             echo "could not parse formula" 1>&2
@@ -87,7 +84,7 @@ case "$BK_EXAMINATION" in
 	Reachability*)
 	    case "$BK_EXAMINATION" in
 	        ReachabilityDeadlock)
-	            line=$(python formulizer.py deadlock ReachabilityDeadlock.xml --timeout=$TIME_CONFINEMENT --backend=sym "$F_PREFIX")
+	            line=$(formulizer deadlock ReachabilityDeadlock.xml --timeout=$TIME_CONFINEMENT --backend=sym)
 
                 if [ $? -ne 0 ]; then
                     echo "could not parse formula" 1>&2
@@ -100,7 +97,7 @@ case "$BK_EXAMINATION" in
 
                 echo "$stderr" | grep "Got invalid permutation from boost" > /dev/null
 	            if [ $? -eq 0 ]; then
-	                line=$(python formulizer.py deadlock ReachabilityDeadlock.xml --timeout=$TIME_CONFINEMENT --backend=sym --reorder="w2W,ru,f,rs,hf")
+	                line=$(formulizer deadlock ReachabilityDeadlock.xml --timeout=$TIME_CONFINEMENT --backend=sym --reorder="w2W,ru,f,rs,hf")
 
                     if [ $? -ne 0 ]; then
                         echo "could not parse formula" 1>&2
@@ -132,11 +129,11 @@ case "$BK_EXAMINATION" in
 
                 extraopts=""
 
-                if [ "$BK_EXAMINATION" = "ReachabilityFireability" ]; then
-                    extraopts="--extraopts=--inv-bin-par"
-                fi
+                # if [ "$BK_EXAMINATION" = "ReachabilityFireability" ]; then
+                #     extraopts="--extraopts=--inv-bin-par"
+                # fi
 
-                line=$(python formulizer.py reachability "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=sym $extraopts "$F_PREFIX")
+                line=$(formulizer reachability "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=sym $extraopts)
 
                 if [ $? -ne 0 ]; then
                     echo "could not parse formula" 1>&2
@@ -149,7 +146,7 @@ case "$BK_EXAMINATION" in
 
                 echo "$stderr" | grep "Got invalid permutation from boost" > /dev/null
 	            if [ $? -eq 0 ]; then
-	                line=$(python formulizer.py reachability "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=sym $extraopts --reorder="w2W,ru,f,rs,hf" "$F_PREFIX")
+	                line=$(formulizer reachability "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=sym $extraopts --reorder="w2W,ru,f,rs,hf")
 
                     if [ $? -ne 0 ]; then
                         echo "could not parse formula" 1>&2
@@ -196,7 +193,7 @@ case "$BK_EXAMINATION" in
 	    esac
 		;;
 	CTL*)
-	    line=$(python formulizer.py ctl "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=sym "$F_PREFIX")
+	    line=$(formulizer ctl "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=sym)
 
         if [ $? -ne 0 ]; then
             echo "could not parse formula" 1>&2
@@ -210,7 +207,7 @@ case "$BK_EXAMINATION" in
         echo "$stderr" | grep "Got invalid permutation from boost" > /dev/null
 
         if [ $? -eq 0 ]; then
-            line=$(python formulizer.py ctl "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=sym --reorder="w2W,ru,f,rs,hf" "$F_PREFIX")
+            line=$(formulizer ctl "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=sym --reorder="w2W,ru,f,rs,hf")
 
             if [ $? -ne 0 ]; then
                 echo "could not parse formula" 1>&2
@@ -245,7 +242,7 @@ case "$BK_EXAMINATION" in
 
 		;;
     LTL*)
-        line=$(python formulizer.py ltl "$BK_EXAMINATION".xml --timeout=$TIME_CONFINEMENT --backend=mc "$F_PREFIX")
+        line=$(formulizer ltl "${F_PREFIX}/${BK_EXAMINATION}".xml --timeout=$TIME_CONFINEMENT --backend=mc)
 
         if [ $? -ne 0 ]; then
             echo "could not parse formula" 1>&2
