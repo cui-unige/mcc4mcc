@@ -16,8 +16,9 @@ VBoxManage unregistervm "${name}" \
 # Download virtual machine:
 rm -f "${name}.vmdk*"
 curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
-  --output ${name}.vmdk.bz2
-tar xf ${name}.vmdk.bz2
+     -z "${name}.vmdk.bz2" \
+     -o "${name}.vmdk.bz2"
+tar xf "${name}.vmdk.bz2"
 
 # Launch the virtual machine:
 VBoxManage createvm \
@@ -54,4 +55,4 @@ VBoxManage controlvm "${name}" \
   poweroff
 VBoxManage unregistervm "${name}" \
   --delete
-rm -f "${name}.vmdk*"
+rm -f "${name}.vmdk"*

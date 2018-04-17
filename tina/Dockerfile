@@ -1,6 +1,8 @@
 FROM debian:stable-slim
 
 RUN true \
+ && echo "APT::Install-Recommends "0";" >> /etc/apt/apt.conf.d/10norecommends \
+ && echo "APT::Install-Suggests "0";"   >> /etc/apt/apt.conf.d/10norecommends \
  && apt-get update \
  && apt-get install \
             --yes \
@@ -32,7 +34,7 @@ RUN true \
  && curl http://projects.laas.fr/tina/binaries/tina-3.4.4-x86_64-linux.tar.gz \
          --output tina-3.4.4-x86_64-linux.tar.gz \
     && tar zxf tina-3.4.4-x86_64-linux.tar.gz \
-           --directory /usr/local/ \
+           --directory /usr/ \
            --strip-components 1 \
     && rm -f tina-3.4.4-x86_64-linux.tar.gz \
  && apt-get purge \
@@ -44,8 +46,10 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
-COPY from-vm/net /usr/local/tina/net
-COPY mcc-head    /usr/local/bin/
+COPY from-vm/bin/flags  /usr/share/tina/flags
+COPY from-vm/bin/net    /usr/share/tina/net
+COPY from-vm/bin/tina/* /usr/bin/
+COPY mcc-head           /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]

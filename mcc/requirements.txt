@@ -1,7 +1,10 @@
+argparse
+docker
+frozendict
 numpy
-xmltodict
 pandas
-tqdm
-scikit_learn
 pycodestyle
 pylint
+scikit_learn
+tqdm
+xmltodict

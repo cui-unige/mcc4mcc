@@ -1,11 +1,5 @@
 #! /usr/bin/env bash
-
-#############################################################################
-# In this script, you will affect values to your tool in order to let
-# BenchKit launch it in an apropriate way.
-#############################################################################
-
-# BK_EXAMINATION: it is a string that identifies your "examination"
+set -e
 
 MARCIE_CONFIG="--memory=6"
 TIMEOUT="timeout --kill-after=10s --signal=SIGINT 1m"

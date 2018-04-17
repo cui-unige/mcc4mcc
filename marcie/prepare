@@ -2,7 +2,7 @@
 
 set -e
 
-name="lola2017"
+name="marcie2017"
 port=${1:-2222}
 
 # Clean:
@@ -47,7 +47,7 @@ scp \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/bin \
+  mcc@localhost:BenchKit/bin/marcie \
   from-vm/
 
 # Clean:

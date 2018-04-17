@@ -1,4 +1,5 @@
 #! /usr/bin/env bash
+set -e
 
 trap "echo 'Terminating all processes using: kill -15 -1'; kill -15 -1; sleep 1; echo 'Terminating all processes using: kill -9 -1'; kill -9 -1; echo 'Done with terminating all processes.'; exit" 1 2 3 15
 
@@ -8,14 +9,13 @@ trap "echo 'Terminating all processes using: kill -15 -1'; kill -15 -1; sleep 1;
 MODEL_PATH=.
 
 # Verifypn
-VERIFYPN=verifypn
+VERIFYPN="/usr/bin/verifypn"
 
 # Tools
-PAR_CMD=parallel
-TIMEOUT_CMD=timeout
+PAR_CMD="/usr/bin/parallel"
+TIMEOUT_CMD="/usr/bin/timeout -t"
 TIME_CMD="/usr/bin/time -v"
-
-START_SCRIPT=start
+START_SCRIPT="/usr/bin/start"
 
 #Allowed memory in kB
 MEM="14500000"
