@@ -51,7 +51,6 @@ RUN true \
             --yes \
             autoconf \
             automake \
-            ca-certificates \
             cmake \
             curl \
             gcc \
