@@ -47,7 +47,7 @@ scp \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/bin/Makefile \
+  mcc@localhost:BenchKit/bin \
   from-vm/
 
 # Clean:
