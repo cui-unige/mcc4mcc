@@ -89,10 +89,10 @@ class Values:
         if items is None:
             self.items = {
                 False: -1,
-                None: 0,
-                True: 1,
+                None: -2,
+                True: -3,
             }
-            self.next_id = 10
+            self.next_id = -10
         else:
             self.items = items
             self.next_id = sorted(items.values(), reverse=True)[0]
@@ -105,8 +105,8 @@ class Values:
             return 0
         if isinstance(what, (bool, str)):
             if what not in self.items:
-                self.items[what] = self.next_id + 1
-                self.next_id += 1
+                self.items[what] = self.next_id
+                self.next_id -= 1
             return self.items[what]
         else:
             return what
