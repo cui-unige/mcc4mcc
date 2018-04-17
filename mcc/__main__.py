@@ -364,9 +364,9 @@ def do_run(arguments):
                 "BK_TOOL": tool.lower(),
             },
         )
-        result = container.wait()
         for line in container.logs(stream=True):
             logging.info(line.decode("UTF-8").strip())
+        result = container.wait()
         container.remove()
         if result["StatusCode"] == 0:
             sys.exit(0)
@@ -456,15 +456,11 @@ def do_test(arguments):
                         "BK_TOOL": tool,
                     },
                 )
-                result = container.wait()
-                print(result)
-                # if result["StatusCode"] == 0:
-                #     tested[examination][tool] = True
-                # else:
-                tested[examination][tool] = result["StatusCode"] == 0
                 for line in container.logs(stream=True):
                     logging.info(line.decode("UTF-8").strip())
+                result = container.wait()
                 container.remove()
+                tested[examination][tool] = result["StatusCode"] == 0
             except docker.errors.NotFound:
                 logging.warning(f"Docker image does not exist.")
                 tested[examination][tool] = False
