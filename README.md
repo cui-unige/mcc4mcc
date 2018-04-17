@@ -42,6 +42,21 @@ $ python -m mcc run \
 Models can be obtained in the
 [MCC Submission Kit](https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz).
 
+## Forgetting some model characteristics
+
+In order to create more collisions between models given a set of
+characteristics, it can be interesting to forget some characteristics
+during machine learning.
+The `--forget` option allows is, for instance:
+
+```sh
+$ python -m mcc extract \
+    --duplicates \
+    --year=2017 \
+    --forget "Deadlock,Live,Quasi Live,Reversible,Safe"
+```
+
+
 # Obtaining the tool submission kit and models
 
 The tool submission kit can be downloaded automatically,
