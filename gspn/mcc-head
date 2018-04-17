@@ -1,17 +1,8 @@
 #! /usr/bin/env bash
-#############################################################################
-# This is an example for the MCC'2015
-#############################################################################
-
-#############################################################################
-# In this script, you will affect values to your tool in order to let
-# BenchKit launch it in an apropriate way.
-#############################################################################
-
-# BK_EXAMINATION: it is a string that identifies your "examination"
+set -e
 
 export GSPN_PATH="/usr/share/GreatSPN"
-export PATH="${GSPN_PATH}/bin:${PATH}"
+export PATH="${GSPN_PATH}/bin:${GSPN_PATH}/scripts:${PATH}"
 
 case "$BK_EXAMINATION" in
 
@@ -53,7 +44,7 @@ fi
 if [[ ! -f model.def ]]
 then
     timeout 300s java -mx2000m \
-			-cp "${GSPN_PATH}/Editor.jar":"${GSPN_PATH}/lib/antlr-runtime-4.2.1.jar" \
+			-cp "${GSPN_PATH}/bin/Editor.jar":"${GSPN_PATH}/bin/lib/antlr-runtime-4.2.1.jar" \
 			editor.UnfoldPNML2NetDefCommandLineTool model -name-map
     if [[ $? -ne "0" ]]
     then
@@ -88,7 +79,7 @@ case $BK_EXAMINATION in
         if [[ ! -f $ctlFile ]]
         then
             #echo "Converting $BK_EXAMINATION formulas"
-            java -jar "${GSPN_PATH}/MccCtlConv.jar" $xmlFile -name-map model.id2name $unfoldingParams > $ctlFile
+            java -jar "${GSPN_PATH}/bin/MccCtlConv.jar" $xmlFile -name-map model.id2name $unfoldingParams > $ctlFile
         #else
         #    echo "$BK_EXAMINATION formulas already converted. Using them"
         fi

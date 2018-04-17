@@ -2,8 +2,9 @@ FROM debian:stable-slim
 
 COPY from-vm/local/include/*  /usr/include/
 COPY from-vm/local/lib/*      /usr/lib/
-COPY from-vm/local/GreatSPN/* /usr/share/GreatSPN/
-COPY from-vm/MccCtlConv.jar   /usr/share/GreatSPN/
+COPY from-vm/local/GreatSPN   /usr/share/GreatSPN
+COPY from-vm/MccCtlConv.jar   /usr/share/GreatSPN/bin/
+COPY great_package.sh         /usr/bin/
 
 RUN true \
  && mkdir -p /usr/share/man/man1/ \
@@ -21,6 +22,7 @@ RUN true \
  && sed -i \
         -e 's/assistive_technologies/#assistive_technologies/g' \
         /etc/java-8-openjdk/accessibility.properties \
+ && rm -f /usr/share/GreatSPN/scripts/great_package.sh \
  && apt-get autoremove \
             --yes \
  && apt-get clean \
