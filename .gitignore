@@ -107,6 +107,7 @@ venv.bak/
 # Generated files for machine learning:
 *.p
 *-characteristics.json
+*-configuration.json
 *-known.json
 *-learned.json
 *-values.json
