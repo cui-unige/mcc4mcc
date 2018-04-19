@@ -3,8 +3,8 @@
 set -e
 
 docker login \
-  -u "${DOCKER_USERNAME}" \
-  -p "${DOCKER_PASSWORD}"
+  -u "${docker_username}" \
+  -p "${docker_password}"
 
 for tool in *
 do
