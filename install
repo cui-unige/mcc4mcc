@@ -10,8 +10,6 @@ source ./build-images
 
 echo "Creating the virtual machine for the model checking contest."
 
-temporary=$(mktemp -d)
-
 # Clean:
 VBoxManage controlvm "mcc4mcc" \
   poweroff \
@@ -85,7 +83,7 @@ docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
   > "images.txt"
 
 # Install mcc4mcc:
-rm -rf */from-vm
+rm -rf ./*/from-vm
 scp \
   -r \
   -o "UserKnownHostsFile=/dev/null" \
