@@ -106,16 +106,17 @@ venv.bak/
 
 # Generated files for machine learning:
 *.p
-characteristics.json
-known.json
-learned.json
-values.json
+*-characteristics.json
+*-known.json
+*-learned.json
+*-values.json
 
 # Virtual images:
 *.vmdk.bz2
 *.vmdk
 *.vdi
 *.img
+images.txt
 from-vm/
 
 # Mac OS:
