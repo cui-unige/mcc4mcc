@@ -114,6 +114,10 @@ def do_extract(arguments):
     """
     Main function for the extract command.
     """
+    if arguments.exclude is None:
+        arguments.exclude = []
+    else:
+        arguments.exclude = sorted(arguments.exclude.split(","))
     if arguments.forget is None:
         arguments.forget = []
     else:
@@ -122,6 +126,8 @@ def do_extract(arguments):
     hasher = hashlib.md5()
     for to_forget in arguments.forget:
         hasher.update(bytearray(to_forget, "utf8"))
+    for to_exclude in arguments.exclude:
+        hasher.update(bytearray(to_exclude, "utf8"))
     prefix = hasher.hexdigest()[:16]
     logging.info(f"Prefix is {prefix}.")
     # Load data:
@@ -130,6 +136,8 @@ def do_extract(arguments):
         "results": arguments.results,
         "renaming": RENAMING,
         "forget": arguments.forget,
+        "exclude": arguments.exclude,
+        "year": arguments.year,
     })
     # Read data:
     data.characteristics()
@@ -139,12 +147,6 @@ def do_extract(arguments):
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
-    # Filter by year:
-    if arguments.year is not None:
-        logging.info(
-            f"Filtering year {arguments.year}."
-        )
-        data.filter(lambda e: e["Year"] == arguments.year)
     # Compute maximum score:
     logging.info(f"Maximum score is {max_score(data)}.")
     # Extract known data:
@@ -397,16 +399,13 @@ def do_test(arguments):
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
+        "year": arguments.year,
+        "forget": [],
+        "exclude": [],
     })
     # Read data:
     data.characteristics()
     data.results()
-    # Filter by year:
-    if arguments.year is not None:
-        logging.info(
-            f"Filtering year {arguments.year}."
-        )
-        data.filter(lambda e: e["Year"] == arguments.year)
     results = data.results()
     examinations = {x["Examination"] for x in results}
     tools = {x["Tool"] for x in results}
@@ -545,6 +544,12 @@ EXTRACT.add_argument(
     dest="forget",
     default=None,
 )
+EXTRACT.add_argument(
+    "--exclude",
+    help="Exclude tools (comma separated)",
+    dest="exclude",
+    default=None,
+)
 EXTRACT.set_defaults(func=do_extract)
 
 TEST = SUBPARSERS.add_parser(
@@ -595,6 +600,12 @@ TEST.add_argument(
     help="instance",
     type=str,
     dest="instance",
+)
+TEST.add_argument(
+    "--exclude",
+    help="Exclude tools (comma separated)",
+    dest="exclude",
+    default=None,
 )
 TEST.set_defaults(func=do_test)
 
