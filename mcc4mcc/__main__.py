@@ -291,6 +291,8 @@ def do_run(arguments):
         "Examination": arguments.examination,
         "Place/Transition": (not is_colored) or has_pt,
         "Colored": is_colored or has_colored,
+        "Relative-Time": 1,  # FIXME
+        "Relative-Memory": 1,  # FIXME
     }
     for value in verdict["toolspecific"]["verdict"]:
         if value["@value"] == "true":
