@@ -1,0 +1,24 @@
+[[source]]
+
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+
+[packages]
+
+argparse = "*"
+docker = "*"
+frozendict = "*"
+numpy = "*"
+pandas = "*"
+pycodestyle = "*"
+pylint = "*"
+scikit-learn = "*"
+tqdm = "*"
+xmltodict = "*"
+scipy = "*"
+
+
+[dev-packages]
+
