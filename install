@@ -2,6 +2,11 @@
 
 set -e
 
+source prepare
+source build
+
+echo "Creating the virtual machine for the model checking contest."
+
 read -r    -p "Docker username? " docker_username
 read -r -s -p "Docker password? " docker_password
 
@@ -99,35 +104,8 @@ scp \
   mcc@localhost:BenchKit/
 
 # Install docker images:
-for tool in gspn \
-            itstools \
-            lola \
-            ltsmin \
-            marcie \
-            pnmc \
-            smat \
-            spot \
-            stratagem \
-            tapaal \
-            tina
-do
-  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
-  then
-    echo "${tool}" >> "${temporary}/images"
-    ( cd "${tool}"
-      if [ -x prepare ]
-      then
-        ./prepare
-      fi
-      docker build \
-             --tag="mccpetrinets/${tool}" \
-             --force-rm \
-             --squash \
-             .
-      docker push "mccpetrinets/${tool}"
-    ) || exit 1
-  fi
-done
+docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
+  > "${temporary}/images"
 scp \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
@@ -135,7 +113,6 @@ scp \
   -P 2222 \
   "${temporary}/images" \
   mcc@localhost:
-set -x
 # shellcheck disable=SC2029
 ssh \
   -o "UserKnownHostsFile=/dev/null" \
@@ -156,7 +133,6 @@ do
 done
 rm -f images
 EOS
-set +x
 
 # Stop:
 ssh \
@@ -192,3 +168,5 @@ VBoxManage clonemedium \
   "mcc4mcc.vdi" \
   "mcc4mcc-2018.vmdk"
 rm -f "mcc4mcc.vdi"
+
+echo "The virtual machine has been generated in mcc4mcc-2018.vmdk."

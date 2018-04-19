@@ -12,7 +12,7 @@ python:
 install:
   - pip install -r mcc/requirements.txt
 script:
-  - shellcheck build install
+  - shellcheck build install prepare
   - pycodestyle mcc/*.py
   - pylint mcc/*.py
 notifications:

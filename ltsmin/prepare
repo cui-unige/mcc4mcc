@@ -16,8 +16,9 @@ VBoxManage unregistervm "${name}" \
 # Download virtual machine:
 rm -f "${name}.vmdk*"
 curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
-  --output ${name}.vmdk.bz2
-tar xf ${name}.vmdk.bz2
+     -z "${name}.vmdk.bz2" \
+     -o "${name}.vmdk.bz2"
+tar xf "${name}.vmdk.bz2"
 
 # Launch the virtual machine:
 VBoxManage createvm \
@@ -46,12 +47,21 @@ scp \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/formulizer.py \
+  mcc@localhost:BenchKit/ \
   from-vm/
+# scp \
+#   -r \
+#   -o "UserKnownHostsFile=/dev/null" \
+#   -o "StrictHostKeyChecking=no" \
+#   -i "../ToolSubmissionKit/bk-private_key" \
+#   -P "${port}" \
+#   mcc@localhost:/usr/local/ \
+#   from-vm/
+rm -rf from-vm/BenchKit/INPUTS/
 
 # Clean:
 VBoxManage controlvm "${name}" \
   poweroff
 VBoxManage unregistervm "${name}" \
   --delete
-rm -f "${name}.vmdk*"
+rm -f "${name}.vmdk"*

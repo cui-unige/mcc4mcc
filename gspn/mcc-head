@@ -1,17 +1,8 @@
 #! /usr/bin/env bash
-#############################################################################
-# This is an example for the MCC'2015
-#############################################################################
+set -e
 
-#############################################################################
-# In this script, you will affect values to your tool in order to let
-# BenchKit launch it in an apropriate way.
-#############################################################################
-
-# BK_EXAMINATION: it is a string that identifies your "examination"
-
-export GSPN_PATH="/usr/local/GreatSPN"
-export PATH="${GSPN_PATH}/bin:${PATH}"
+export GSPN_PATH="/usr/share/GreatSPN"
+export PATH="${GSPN_PATH}/bin:${GSPN_PATH}/scripts:${PATH}"
 
 case "$BK_EXAMINATION" in
 
@@ -33,7 +24,7 @@ case "$BK_EXAMINATION" in
 esac
 
 
-rgmedd2Path="RGMEDD2"
+rgmedd2Path="${GSPN_PATH}/RGMEDD2"
 varord="META"
 meddlyCache="67108864"
 
@@ -52,13 +43,6 @@ fi
 
 if [[ ! -f model.def ]]
 then
-    #printf 'Converting .pnml to .net, .def'
-    #if [ $colored ]
-    #then
-    #    echo ', .id2name and .unfmap'
-    #else
-    #    echo ' and .id2name'
-    #fi
     timeout 300s java -mx2000m \
 			-cp "${GSPN_PATH}/bin/Editor.jar":"${GSPN_PATH}/bin/lib/antlr-runtime-4.2.1.jar" \
 			editor.UnfoldPNML2NetDefCommandLineTool model -name-map
@@ -68,7 +52,7 @@ then
         exit 0
     fi
     #echo "Computing bounds, with a timeout of 30s"
-    timeout 30s "${GSPN_PATH}/bin/struct" model -only-bnd -detect-exp
+    timeout 30s "${GSPN_PATH}/struct" model -only-bnd -detect-exp
     if [[ $? -ne "0" ]]
     then
         rm -f model.bnd model.pin
