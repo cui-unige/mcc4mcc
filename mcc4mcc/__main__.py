@@ -130,6 +130,17 @@ def do_extract(arguments):
         hasher.update(bytearray(to_exclude, "utf8"))
     prefix = hasher.hexdigest()[:16]
     logging.info(f"Prefix is {prefix}.")
+    with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
+        json.dump({
+            "characteristics": arguments.characteristics,
+            "data": arguments.data,
+            "duplicates": arguments.duplicates,
+            "exclude": arguments.exclude,
+            "forget": arguments.forget,
+            "results": arguments.results,
+            "training": arguments.training,
+            "year": arguments.year,
+        }, output)
     # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
