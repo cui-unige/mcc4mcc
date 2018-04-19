@@ -4,10 +4,7 @@ set -e
 
 read -r    -p "Docker username? " docker_username
 read -r -s -p "Docker password? " docker_password
-
-source ./prepare
-source ./build-images
-
+echo
 echo "Creating the virtual machine for the model checking contest."
 
 # Clean:
@@ -69,13 +66,14 @@ add-apt-repository \
 apt-get update  --yes
 apt-get install --yes \
   docker-ce \
-  python3-pip
+  python3-pip \
+  python3-setuptools
 adduser mcc docker
 pip3 install numpy
 pip3 install scikit-learn
 pip3 install xmltodict
-mkdir -p     /usr/local/share/mcc4mcc
-chown -R mcc /usr/local/share/mcc4mcc
+mkdir -p     /usr/share/mcc4mcc
+chown -R mcc /usr/share/mcc4mcc
 EOS
 
 # Install docker images:
@@ -83,22 +81,38 @@ docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
   > "images.txt"
 
 # Install mcc4mcc:
-rm -rf ./*/from-vm
+rm -rf mcc4mcc/__pycache__/
 scp \
   -r \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -P 2222 \
-  . \
-  root@localhost:/usr/local/share/mcc4mcc/
+  mcc4mcc \
+  root@localhost:/usr/share/mcc4mcc/mcc4mcc
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  setup.py requirements.txt \
+  root@localhost:/usr/share/mcc4mcc/
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  *.p *.json \
+  root@localhost:/usr/share/mcc4mcc/
 scp \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -P 2222 \
   BenchKit_head.sh \
-  root@localhost:BenchKit/
+  mcc@localhost:BenchKit/
 
 # shellcheck disable=SC2029
 ssh \
@@ -111,15 +125,15 @@ ssh \
    DOCKER_PASSWORD=${docker_password} \
    bash -s" <<"EOS"
 set -e
-pip install /usr/local/share/mcc4mcc
+pip3 install /usr/share/mcc4mcc
 docker login \
   --username="${DOCKER_USERNAME}" \
   --password="${DOCKER_PASSWORD}"
-for image in $(cat /usr/local/share/mcc4mcc/images.txt)
+for image in $(cat /usr/share/mcc4mcc/images.txt)
 do
   docker pull ${image}
 done
-chown -R mcc /usr/local/share/mcc4mcc
+chown -R mcc /usr/share/mcc4mcc
 EOS
 
 # Stop:
