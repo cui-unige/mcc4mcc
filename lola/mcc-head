@@ -3,7 +3,7 @@
 TIME_CONFINEMENT=$BK_TIME_CONFINEMENT
 
 #cp $BK_MCC_PATH/Makefile .
-cp /usr/local/share/lola/Makefile .
+cp /usr/share/lola/Makefile .
 
 # get beginning time
 startPreparationTime=$(date +%s);

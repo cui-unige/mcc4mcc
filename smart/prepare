@@ -2,7 +2,7 @@
 
 set -e
 
-name="tina2017"
+name="smart2017"
 port=${1:-2222}
 
 # Clean:
@@ -48,14 +48,24 @@ VBoxManage startvm "${name}" \
 # Copy files from the virtual machine:
 rm -rf from-vm/
 mkdir -p from-vm/
+# scp \
+#   -r \
+#   -o "UserKnownHostsFile=/dev/null" \
+#   -o "StrictHostKeyChecking=no" \
+#   -i "../ToolSubmissionKit/bk-private_key" \
+#   -P "${port}" \
+#   mcc@localhost:/usr/ \
+#   from-vm/usr
 scp \
   -r \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/bin \
-  from-vm/
+  mcc@localhost:/home/mcc \
+  from-vm/mcc
+rm -rf from-vm/mcc/INPUTS/
+rm -rf from-vm/mcc/BenchKit/INPUTS*
 
 # Clean:
 VBoxManage controlvm "${name}" \

@@ -1,0 +1,10 @@
+argparse
+docker
+frozendict
+numpy
+pandas
+pycodestyle
+pylint
+scikit_learn
+tqdm
+xmltodict

@@ -5,7 +5,10 @@ set -e
 read -r    -p "Docker username? " docker_username
 read -r -s -p "Docker password? " docker_password
 
-temporary=$(mktemp -d)
+source ./prepare
+source ./build-images
+
+echo "Creating the virtual machine for the model checking contest."
 
 # Clean:
 VBoxManage controlvm "mcc4mcc" \
@@ -75,88 +78,49 @@ mkdir -p     /usr/local/share/mcc4mcc
 chown -R mcc /usr/local/share/mcc4mcc
 EOS
 
+# Install docker images:
+docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
+  > "images.txt"
+
 # Install mcc4mcc:
+rm -rf ./*/from-vm
 scp \
+  -r \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -P 2222 \
-  mcc/*.py mcc/*.json mcc/*.p \
-  mcc@localhost:BenchKit/bin/
-scp \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  mcc/*.json mcc/*.p \
-  mcc@localhost:/usr/local/share/mcc4mcc/
+  . \
+  root@localhost:/usr/local/share/mcc4mcc/
 scp \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -P 2222 \
   BenchKit_head.sh \
-  mcc@localhost:BenchKit/
+  root@localhost:BenchKit/
 
-# Install docker images:
-for tool in gspn \
-            itstools \
-            lola \
-            ltsmin \
-            marcie \
-            pnmc \
-            smat \
-            spot \
-            stratagem \
-            tapaal \
-            tina
-do
-  if [ -d "${tool}" ] && [ -f "${tool}/Dockerfile" ]
-  then
-    echo "${tool}" >> "${temporary}/images"
-    ( cd "${tool}"
-      if [ -x prepare ]
-      then
-        ./prepare
-      fi
-      docker build \
-             --tag="mccpetrinets/${tool}" \
-             --force-rm \
-             --squash \
-             .
-      docker push "mccpetrinets/${tool}"
-    ) || exit 1
-  fi
-done
-scp \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  "${temporary}/images" \
-  mcc@localhost:
-set -x
 # shellcheck disable=SC2029
 ssh \
   -o "UserKnownHostsFile=/dev/null" \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -p 2222 \
-  mcc@localhost \
+  root@localhost \
   "DOCKER_USERNAME=${docker_username} \
    DOCKER_PASSWORD=${docker_password} \
    bash -s" <<"EOS"
 set -e
+pip install /usr/local/share/mcc4mcc
 docker login \
   --username="${DOCKER_USERNAME}" \
   --password="${DOCKER_PASSWORD}"
-for image in $(cat images)
+for image in $(cat /usr/local/share/mcc4mcc/images.txt)
 do
   docker pull ${image}
 done
-rm -f images
+chown -R mcc /usr/local/share/mcc4mcc
 EOS
-set +x
 
 # Stop:
 ssh \
@@ -192,3 +156,5 @@ VBoxManage clonemedium \
   "mcc4mcc.vdi" \
   "mcc4mcc-2018.vmdk"
 rm -f "mcc4mcc.vdi"
+
+echo "The virtual machine has been generated in mcc4mcc-2018.vmdk."

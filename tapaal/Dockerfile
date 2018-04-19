@@ -1,7 +1,7 @@
 FROM alpine
 
 COPY Makefile  /Makefile
-COPY start     /usr/local/bin/
+COPY start     /usr/bin/
 
 RUN true \
  && apk add --no-cache --virtual .build-deps \
@@ -24,11 +24,11 @@ RUN true \
  && git clone --depth=1 https://github.com/kerrickstaley/lp_solve.git \
     && cd lp_solve/lpsolve55 \
     && sh ccc \
-    && install bin/ux64/liblpsolve55.a  /usr/local/lib/ \
-    && install bin/ux64/liblpsolve55.so /usr/local/lib/ \
+    && install bin/ux64/liblpsolve55.a  /usr/lib/ \
+    && install bin/ux64/liblpsolve55.so /usr/lib/ \
     && cd .. \
-    && mkdir -p /usr/local/include/lpsolve \
-    && install *.h /usr/local/include/lpsolve/ \
+    && mkdir -p /usr/include/lpsolve \
+    && install *.h /usr/include/lpsolve/ \
     && rm -rf lp_solve* \
  && bzr branch lp:verifypn \
     && rm verifypn/makefile* \
@@ -38,14 +38,14 @@ RUN true \
     && sed -i -e "s|../lpsolve|lpsolve|g" $(find . -name "*.*pp") $(find . -name "*.h") \
     && sed -i -e "s|../lpsolve|lpsolve|g" $(find . -name "*.*pp") $(find . -name "*.h") \
     && make \
-    && install -m 755 verifypn-linux64 /usr/local/bin/verifypn \
+    && install -m 755 verifypn-linux64 /usr/bin/verifypn \
     && cd .. \
     && rm -rf verifypn* \
  && rm /Makefile \
  && apk del .build-deps \
  && true
 
-COPY mcc-head  /usr/local/bin/
+COPY mcc-head  /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]

@@ -1,5 +1,3 @@
-BINDIR := /home/mcc/BenchKit/bin
-
 OS := $(shell uname)
 
 # catch the environment variable that determines what to do
@@ -163,11 +161,11 @@ ifneq "$(findstring COL,$(MODEL_TYPE))" ""
 	@-echo " $(CRT_DIR): translating COL Petri net $< into LoLA format"
 	@-echo "==========================================================================================="
 ifneq "$(findstring Linux,$(OS))" ""
-	@-$(BINDIR)/cpn-linux -lola $< > $@
+	@-cpn-linux -lola $< > $@
 	@-echo "translating COL Petri net complete"
 endif
 ifneq "$(findstring Darwin,$(OS))" ""
-	@-$(BINDIR)/cpn-darwin -lola $< > $@
+	@-cpn-darwin -lola $< > $@
 	@-echo "translating COL Petri net complete"
 endif
 ifneq "$(findstring $(CRT_DIR),$(SAFENETS_COL))" ""
@@ -182,11 +180,11 @@ else
 	@-echo "==========================================================================================="
 ifneq "$(findstring $(CRT_DIR),$(SAFENETS_PT))" ""
 # The net is safe.
-	@-$(BINDIR)/pnml2lola/pnml2lola -s < $< > $@
+	@-pnml2lola -s < $< > $@
 	@-echo "translating PT Petri net complete"
 else
 # We don't know, whether the net is safe or not.
-	@-$(BINDIR)/pnml2lola/pnml2lola < $< > $@
+	@-pnml2lola < $< > $@
 	@-echo "translating PT Petri net complete"
 endif
 	@-echo ""
@@ -195,14 +193,14 @@ endif
 
 too_many_tokens:
 	@-echo "checking for too many tokens"
-	@-$(BINDIR)/checklarge/checklarge < model.pnml.lola > /dev/null
+	@-checklarge < model.pnml.lola > /dev/null
 
 formulae:
 ifneq ("$(findstring COL,$(MODEL_TYPE))", "")
 	@-echo "==========================================================================================="
 	@-echo "$(CRT_DIR): translating COL formula $(BK_EXAMINATION) into LoLA format"
 	@-echo "==========================================================================================="
-	@-cat model.pnml.lola $(BK_EXAMINATION).xml | $(BINDIR)/hlformula2lola/hlformula2lola
+	@-cat model.pnml.lola $(BK_EXAMINATION).xml | hlformula2lola
 	@-echo "translating formula complete"
 else
 ifneq ("$(wildcard *$(BK_EXAMINATION).task)","")
@@ -210,10 +208,10 @@ else
 	@-echo "==========================================================================================="
 	@-echo "$(CRT_DIR): translating PT formula $(BK_EXAMINATION) into LoLA format"
 	@-echo "==========================================================================================="
-	@-$(BINDIR)/formula2lola/formula2lola < $(BK_EXAMINATION).xml
+	@-formula2lola < $(BK_EXAMINATION).xml
 	@-echo "translating formula complete"
 endif
-# Create the empty file to avoid translation 
+# Create the empty file to avoid translation
 # when the formula is already translated
 	touch formulae;
 endif
@@ -270,7 +268,7 @@ else ifeq ($(BK_EXAMINATION),LTLFireability)
 	    lola model.pnml.lola --formula=$$task \
 		--check=modelchecking --stubborn=tarjan \
 		--timelimit=$(remainingTime) --localtimelimit=-1 \
-		--preference=ltl 2> $${task%.task}.result ; \
+		2> $${task%.task}.result ; \
 	done
 else ifeq ($(BK_EXAMINATION),LTLCardinality)
 	@-for task in $(wildcard *$(BK_EXAMINATION).task); do \
@@ -278,7 +276,7 @@ else ifeq ($(BK_EXAMINATION),LTLCardinality)
 	    lola model.pnml.lola --formula=$$task \
 		--check=modelchecking --stubborn=tarjan \
 		--timelimit=$(remainingTime) --localtimelimit=-1 \
-		--preference=ltl 2> $${task%.task}.result ; \
+		2> $${task%.task}.result ; \
 	done
 # LTL: ...)
 # CTL: (...
@@ -288,7 +286,7 @@ else ifeq ($(BK_EXAMINATION),CTLFireability)
 	    lola model.pnml.lola --formula=$$task \
 		--check=modelchecking --stubborn=tarjan \
 		--timelimit=$(remainingTime) --localtimelimit=-1 \
-		--preference=ctl 2> $${task%.task}.result ; \
+		2> $${task%.task}.result ; \
 	done
 else ifeq ($(BK_EXAMINATION),CTLCardinality)
 	@-for task in $(wildcard *$(BK_EXAMINATION).task); do \
@@ -297,7 +295,7 @@ else ifeq ($(BK_EXAMINATION),CTLCardinality)
 		--check=modelchecking --stubborn=tarjan \
 		--timelimit=$(remainingTime) --localtimelimit=-1 \
 		--stateequation=par \
-		--preference=ctl 2> $${task%.task}.result ; \
+		2> $${task%.task}.result ; \
 	done
 # CTL: ...)
 endif
@@ -307,12 +305,12 @@ endif
 result:
 ifneq "$(findstring $(BK_EXAMINATION),$(DONOTCOMPETE))" ""
 	@echo "DO_NOT_COMPETE"
-# Add CANNOT_COMPUTE where model.pnml.lola = 0 KB	
+# Add CANNOT_COMPUTE where model.pnml.lola = 0 KB
 #else ifneq "$(findstring COL,$(MODEL_TYPE))" ""
 #	@echo "DO_NOT_COMPETE"
 else ifeq ($(BK_EXAMINATION),ReachabilityDeadlock)
 ifneq ("$(wildcard too_many_tokens)","")
-	@echo "FORMULA $(CRT_DIR)-$(BK_EXAMINATION) CANNOT_COMPUTE" ; 
+	@echo "FORMULA $(CRT_DIR)-$(BK_EXAMINATION) CANNOT_COMPUTE" ;
 else
 	@-cat *$(BK_EXAMINATION).result
 	@-for result in $(wildcard *$(BK_EXAMINATION).result); do \
