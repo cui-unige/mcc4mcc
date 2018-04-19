@@ -268,20 +268,6 @@ def do_run(arguments):
         )[0]["Algorithm"]
         with open(f"{arguments.data}/{arguments.prefix}-learned.{algorithm}.p", "rb") as i:
             model = pickle.load(i)
-    elif arguments.cheat:
-        algorithm = sorted(
-            [x for x in learned_data if x["Is-Tool"]],
-            key=lambda e: e[arguments.examination],
-            reverse=True,
-        )[0]["Algorithm"]
-
-        # pylint: disable=missing-docstring,no-self-use
-        class Silly:
-            def predict(self, _):
-                return [values.to_learning(algorithm)]
-        # pylint: enable=missing-docstring,no-self-use
-
-        model = Silly()
     else:
         algorithm = sorted(
             [x for x in learned_data if x["Is-Algorithm"]],
@@ -345,9 +331,11 @@ def do_run(arguments):
                         f"for examination {examination} "
                         f"on instance {instance} or model {model}.")
     # Run the tools:
-    if arguments.cheat and known_tools is not None:
+    if os.getenv("BK_TOOL") == "mcc4mcc-cheat" and known_tools is not None:
         tools = known_tools
-    elif learned_tools is not None:
+    elif os.getenv("BK_TOOL") == "mcc4mcc-mix" and known_tools is not None:
+        tools = known_tools
+    elif os.getenv("BK_TOOL") != "mcc4mcc-cheat" and learned_tools is not None:
         tools = learned_tools
     else:
         logging.error(f"DO_NOT_COMPETE")
@@ -614,7 +602,9 @@ def default_prefix():
     """
     Computes the default prefix.
     """
-    if os.getenv("BK_TOOL") and os.getenv("BK_TOOL") != "mcc4mcc-cheat":
+    if os.getenv("BK_TOOL") \
+            and os.getenv("BK_TOOL") != "mcc4mcc-cheat" \
+            and os.getenv("BK_TOOL") != "mcc4mcc-mix":
         search = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
         return search.group(1)
     return hashlib.md5().hexdigest()[:16]
@@ -658,13 +648,6 @@ RUN.add_argument(
     help="machine learning algorithm to use",
     type=str,
     dest="algorithm",
-)
-RUN.add_argument(
-    "--cheat",
-    help="Cheat by using known information",
-    dest="cheat",
-    action="store_true",
-    default=os.getenv("BK_TOOL") == "mcc4mcc-cheat"
 )
 RUN.add_argument(
     "--prefix",
