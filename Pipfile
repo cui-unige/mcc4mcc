@@ -7,13 +7,16 @@ name = "pypi"
 
 [packages]
 
+argparse = "*"
+docker = "*"
+frozendict = "*"
 numpy = "*"
-xmltodict = "*"
 pandas = "*"
-tqdm = "*"
-scikit-learn = "*"
 pycodestyle = "*"
 pylint = "*"
+scikit-learn = "*"
+tqdm = "*"
+xmltodict = "*"
 scipy = "*"
 
 
