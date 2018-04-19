@@ -149,7 +149,7 @@ class Data:
         result = {}
         source = self.configuration["characteristics"]
         logging.info(
-            f"Reading model characteristics from '{source}'."
+            f"Reading model characteristics from {source}."
         )
         with tqdm(total=sum(1 for line in open(source)) - 1) as counter:
             with open(source) as data:
@@ -184,7 +184,7 @@ class Data:
         source = self.configuration["results"]
         characteristics = self.cache["characteristics"]
         logging.info(
-            f"Reading mcc results from '{source}'."
+            f"Reading mcc results from {source}."
         )
         with tqdm(total=sum(1 for line in open(source)) - 1) as counter:
             with open(source) as data:

@@ -9,8 +9,8 @@ import pandas
 from frozendict import frozendict
 from tqdm import tqdm
 from sklearn import tree
-from mcc.model import Values, TECHNIQUES
-from mcc.algorithms import ALGORITHMS
+from mcc4mcc.model import Values, TECHNIQUES
+from mcc4mcc.algorithms import ALGORITHMS
 
 REMOVE = [
     "Id", "Model", "Instance", "Year",
@@ -45,7 +45,7 @@ def characteristics_of(data):
             result[stripped] = []
         result[stripped].append(identifier)
     stats = statistics.mean([len(v) for k, v in result.items()])
-    logging.info(f"Mean models per characteristis set: {stats}.")
+    logging.info(f"Mean models per characteristics set: {stats}.")
     return result
 
 
@@ -304,6 +304,8 @@ def learned(data, options):
     """
     Analyzes learned data.
     """
+    directory = options["Directory"]
+    prefix = options["Prefix"]
     result = []
     results = data.results()
     data.characteristics()
@@ -362,11 +364,13 @@ def learned(data, options):
         dataframe = dataframe.drop_duplicates(keep="first")
         logging.info(f"Using {dataframe.shape [0]} non duplicate entries.")
     # Compute efficiency for each algorithm:
-    for name, algorithm in ALGORITHMS.items():
+    for alg_entry in sorted(ALGORITHMS.items(), key=lambda e: e[0]):
+        name = alg_entry[0]
+        algorithm = alg_entry[1]
         # Skip complex algorithms if duplicates data are allowed:
         if options["Duplicates"] and name in ["knn", "bagging-knn"]:
             continue
-        logging.info(f"Learning using algorithm: '{name}'.")
+        logging.info(f"Learning using algorithm: {name}.")
         alg_results = {
             "Algorithm": name,
             "Is-Tool": False,
@@ -396,7 +400,7 @@ def learned(data, options):
                 if value > 0:
                     logging.info(f"  * {tool} is chosen {value} times")
         # Store algorithm:
-        with open(f"learned.{name}.p", "wb") as output:
+        with open(f"{directory}/{prefix}-learned.{name}.p", "wb") as output:
             pickle.dump(algorithm, output)
         # Output decision tree and random forest to graphviz:
         if options["Output Trees"] \
