@@ -237,7 +237,6 @@ def do_run(arguments):
     model = split.group(1)
     logging.info(f"Using {instance} as instance name.")
     logging.info(f"Using {model} as model name.")
-    examination = arguments.examination
     # Set tool:
     known_tools = None
     if arguments.tool is not None:
@@ -248,14 +247,15 @@ def do_run(arguments):
         }]
     else:
         # Find known tools:
-        if known_data[examination] is not None:
-            if known_data[examination][instance] is not None:
-                known_tools = known_data[examination][instance]
-            elif known_data[examination][model] is not None:
-                known_tools = known_data[examination][model]
+        if known_data[arguments.examination] is not None:
+            if known_data[arguments.examination][instance] is not None:
+                known_tools = known_data[arguments.examination][instance]
+            elif known_data[arguments.examination][model] is not None:
+                known_tools = known_data[arguments.examination][model]
     if known_tools is None:
         logging.warning(
-            f"Cannot find known information for examination {examination} "
+            f"Cannot find known information "
+            f"for examination {arguments.examination} "
             f"on instance {instance} or model {model}.")
     # Set algorithm:
     learned_tools = None
@@ -266,7 +266,8 @@ def do_run(arguments):
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
-        with open(f"{arguments.data}/{arguments.prefix}-learned.{algorithm}.p", "rb") as i:
+        filename = f"{arguments.data}/{arguments.prefix}-learned.{algorithm}.p"
+        with open(filename, "rb") as i:
             model = pickle.load(i)
     else:
         algorithm = sorted(
@@ -287,7 +288,7 @@ def do_run(arguments):
     with open(f"{directory}/GenericPropertiesVerdict.xml", "r") as i:
         verdict = xmltodict.parse(i.read())
     characteristics = {
-        "Examination": examination,
+        "Examination": arguments.examination,
         "Place/Transition": (not is_colored) or has_pt,
         "Colored": is_colored or has_colored,
     }
@@ -324,11 +325,11 @@ def do_run(arguments):
                     break
     elif known_tools is None:
         logging.warning(f"No known information "
-                        f"for examination {examination} "
+                        f"for examination {arguments.examination} "
                         f"on instance {instance} or model {model}.")
     elif learned_tools is None:
         logging.warning(f"No learned information "
-                        f"for examination {examination} "
+                        f"for examination {arguments.examination} "
                         f"on instance {instance} or model {model}.")
     # Run the tools:
     if os.getenv("BK_TOOL") == "mcc4mcc-cheat" and known_tools is not None:
@@ -345,7 +346,7 @@ def do_run(arguments):
     client = docker.from_env()
     for entry in tools:
         tool = entry["Tool"]
-        logging.info(f"{examination} {tool} {instance}...")
+        logging.info(f"{arguments.examination} {tool} {instance}...")
         # client.images.pull(f"mccpetrinets/{tool.lower()}")
         container = client.containers.run(
             image=f"mccpetrinets/{tool.lower()}",
@@ -363,7 +364,7 @@ def do_run(arguments):
             },
             environment={
                 "BK_LOG_FILE": "/mcc-data/log",
-                "BK_EXAMINATION": f"{examination}",
+                "BK_EXAMINATION": f"{arguments.examination}",
                 "BK_TIME_CONFINEMENT": "3600",
                 "BK_INPUT": f"{instance}",
                 "BK_TOOL": tool.lower(),
