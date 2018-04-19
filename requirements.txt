@@ -8,3 +8,4 @@ pylint
 scikit_learn
 tqdm
 xmltodict
+scipy
