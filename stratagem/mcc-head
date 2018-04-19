@@ -1,4 +1,5 @@
 #! /usr/bin/env bash
+set -e
 
 java -Xss8m \
      -Xms40m \

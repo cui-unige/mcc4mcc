@@ -5,6 +5,7 @@ Model Checker Collection for the Model Checking Contest.
 """
 
 import argparse
+import hashlib
 import logging
 import os
 # import getpass
@@ -20,9 +21,9 @@ import pandas
 import xmltodict
 import docker
 
-from mcc.analysis import known, learned, score_of, max_score, \
+from mcc4mcc.analysis import known, learned, score_of, max_score, \
     characteristics_of
-from mcc.model import Values, Data, value_of
+from mcc4mcc.model import Values, Data, value_of
 
 
 VERDICTS = {
@@ -71,8 +72,8 @@ def unarchive(filename):
             directory = tempfile.TemporaryDirectory()
             TEMPORARY = directory
             logging.info(
-                f"Extracting archive '{filename}' "
-                f"to temporary directory '{directory.name}'.")
+                f"Extracting archive {filename} "
+                f"to temporary directory {directory.name}.")
             with tarfile.open(name=filename) as tar:
                 tar.extractall(path=directory.name)
             if platform.system() == "Darwin":
@@ -82,8 +83,8 @@ def unarchive(filename):
         elif os.path.isdir(filename):
             if os.path.isfile(filename + "/model.pnml"):
                 logging.info(
-                    f"Using directory '{filename}' for input, "
-                    f"as it contains a 'model.pnml' file.")
+                    f"Using directory {filename} for input, "
+                    f"as it contains a model.pnml file.")
                 break
             else:
                 parts = os.listdir(filename)
@@ -91,13 +92,13 @@ def unarchive(filename):
                     filename = filename + "/" + parts[0]
                 else:
                     logging.error(
-                        f"Cannot use directory '{filename}' for input, "
-                        f"as it does not contain a 'model.pnml' file.")
+                        f"Cannot use directory {filename} for input, "
+                        f"as it does not contain a model.pnml file.")
                     return None
         else:
             logging.error(
-                f"Cannot use directory '{filename}' for input, "
-                f"as it does not contain a 'model.pnml' file.")
+                f"Cannot use directory {filename} for input, "
+                f"as it does not contain a model.pnml file.")
             return None
     return filename
 
@@ -113,15 +114,30 @@ def do_extract(arguments):
     """
     Main function for the extract command.
     """
+    if arguments.exclude is None:
+        arguments.exclude = []
+    else:
+        arguments.exclude = sorted(arguments.exclude.split(","))
     if arguments.forget is None:
         arguments.forget = []
     else:
-        arguments.forget = arguments.forget.split(",")
+        arguments.forget = sorted(arguments.forget.split(","))
+    # Compute prefix for generated files:
+    hasher = hashlib.md5()
+    for to_forget in arguments.forget:
+        hasher.update(bytearray(to_forget, "utf8"))
+    for to_exclude in arguments.exclude:
+        hasher.update(bytearray(to_exclude, "utf8"))
+    prefix = hasher.hexdigest()[:16]
+    logging.info(f"Prefix is {prefix}.")
+    # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
         "forget": arguments.forget,
+        "exclude": arguments.exclude,
+        "year": arguments.year,
     })
     # Read data:
     data.characteristics()
@@ -131,28 +147,24 @@ def do_extract(arguments):
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
-    # Filter by year:
-    if arguments.year is not None:
-        logging.info(
-            f"Filtering year '{arguments.year}'."
-        )
-        data.filter(lambda e: e["Year"] == arguments.year)
     # Compute maximum score:
     logging.info(f"Maximum score is {max_score(data)}.")
     # Extract known data:
     known_data = known(data)
-    with open(f"{arguments.data}/known.json", "w") as output:
+    with open(f"{arguments.data}/{prefix}-known.json", "w") as output:
         json.dump(known_data, output)
     # Extract learned data:
     learned_data, values = learned(data, {
         "Duplicates": arguments.duplicates,
         "Output Trees": arguments.output_trees,
+        "Directory": arguments.data,
+        "Prefix": prefix,
     })
-    with open(f"{arguments.data}/values.json", "w") as output:
+    with open(f"{arguments.data}/{prefix}-values.json", "w") as output:
         json.dump(values.items, output)
     # Compute scores for tools:
-    for tool in tools:
-        logging.info(f"Computing score of tool: '{tool}'.")
+    for tool in sorted(tools):
+        logging.info(f"Computing score of tool: {tool}.")
         score = score_of(data, tool)
         subresult = {
             "Algorithm": tool,
@@ -165,7 +177,7 @@ def do_extract(arguments):
             total = total + value
         learned_data.append(subresult)
         logging.info(f"  Score: {total}")
-    with open(f"{arguments.data}/learned.json", "w") as output:
+    with open(f"{arguments.data}/{prefix}-learned.json", "w") as output:
         json.dump(learned_data, output)
     # Print per-examination scores:
     srt = []
@@ -192,23 +204,27 @@ def do_run(arguments):
     """
     Main function for the run command.
     """
+    logging.info(f"Prefix is {arguments.prefix}.")
     # Load known info:
     logging.info(
-        f"Reading known information in '{arguments.data}/known.json'."
+        f"Reading known information "
+        f"in {arguments.data}/{arguments.prefix}-known.json."
     )
-    with open(f"{arguments.data}/known.json", "r") as i:
+    with open(f"{arguments.data}/{arguments.prefix}-known.json", "r") as i:
         known_data = json.load(i)
     # Load learned info:
     logging.info(
-        f"Reading learned information in '{arguments.data}/learned.json'."
+        f"Reading learned information "
+        f"in {arguments.data}/{arguments.prefix}-learned.json."
     )
-    with open(f"{arguments.data}/learned.json", "r") as i:
+    with open(f"{arguments.data}/{arguments.prefix}-learned.json", "r") as i:
         learned_data = json.load(i)
     # Load translations:
     logging.info(
-        f"Reading value translations in '{arguments.data}/values.json'."
+        f"Reading value translations "
+        f"in {arguments.data}/{arguments.prefix}-values.json."
     )
-    with open(f"{arguments.data}/values.json", "r") as i:
+    with open(f"{arguments.data}/{arguments.prefix}-values.json", "r") as i:
         translations = json.load(i)
     values = Values(translations)
     # Find input:
@@ -219,9 +235,8 @@ def do_run(arguments):
         instance = arguments.instance
     split = re.search(r"([^-]+)\-([^-]+)\-([^-]+)$", instance)
     model = split.group(1)
-    logging.info(f"Using '{instance}' as instance name.")
-    logging.info(f"Using '{model}' as model name.")
-    examination = arguments.examination
+    logging.info(f"Using {instance} as instance name.")
+    logging.info(f"Using {model} as model name.")
     # Set tool:
     known_tools = None
     if arguments.tool is not None:
@@ -232,15 +247,16 @@ def do_run(arguments):
         }]
     else:
         # Find known tools:
-        if known_data[examination] is not None:
-            if known_data[examination][instance] is not None:
-                known_tools = known_data[examination][instance]
-            elif known_data[examination][model] is not None:
-                known_tools = known_data[examination][model]
+        if known_data[arguments.examination] is not None:
+            if known_data[arguments.examination][instance] is not None:
+                known_tools = known_data[arguments.examination][instance]
+            elif known_data[arguments.examination][model] is not None:
+                known_tools = known_data[arguments.examination][model]
     if known_tools is None:
         logging.warning(
-            f"Cannot find known information for examination '{examination}' "
-            f"on instance '{instance}' or model '{model}'.")
+            f"Cannot find known information "
+            f"for examination {arguments.examination} "
+            f"on instance {instance} or model {model}.")
     # Set algorithm:
     learned_tools = None
     if arguments.algorithm:
@@ -250,31 +266,19 @@ def do_run(arguments):
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
-        with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
+        filename = f"{arguments.data}/{arguments.prefix}-learned.{algorithm}.p"
+        with open(filename, "rb") as i:
             model = pickle.load(i)
-    elif arguments.cheat:
-        algorithm = sorted(
-            [x for x in learned_data if x["Is-Tool"]],
-            key=lambda e: e[arguments.examination],
-            reverse=True,
-        )[0]["Algorithm"]
-
-        # pylint: disable=missing-docstring,no-self-use
-        class Silly:
-            def predict(self, _):
-                return [values.to_learning(algorithm)]
-        # pylint: enable=missing-docstring,no-self-use
-
-        model = Silly()
     else:
         algorithm = sorted(
             [x for x in learned_data if x["Is-Algorithm"]],
             key=lambda e: e[arguments.examination],
             reverse=True,
         )[0]["Algorithm"]
-        with open(f"{arguments.data}/learned.{algorithm}.p", "rb") as i:
+        filename = f"{arguments.data}/{arguments.prefix}-learned.{algorithm}.p"
+        with open(filename, "rb") as i:
             model = pickle.load(i)
-    logging.info(f"Using algorithm or tool '{algorithm}'.")
+    logging.info(f"Using algorithm or tool {algorithm}.")
     # Find learned tools:
     is_colored = read_boolean(f"{directory}/iscolored")
     if is_colored:
@@ -284,7 +288,7 @@ def do_run(arguments):
     with open(f"{directory}/GenericPropertiesVerdict.xml", "r") as i:
         verdict = xmltodict.parse(i.read())
     characteristics = {
-        "Examination": examination,
+        "Examination": arguments.examination,
         "Place/Transition": (not is_colored) or has_pt,
         "Colored": is_colored or has_colored,
     }
@@ -321,26 +325,28 @@ def do_run(arguments):
                     break
     elif known_tools is None:
         logging.warning(f"No known information "
-                        f"for examination '{examination}' "
-                        f"on instance '{instance}' or model '{model}'.")
+                        f"for examination {arguments.examination} "
+                        f"on instance {instance} or model {model}.")
     elif learned_tools is None:
         logging.warning(f"No learned information "
-                        f"for examination '{examination}' "
-                        f"on instance '{instance}' or model '{model}'.")
+                        f"for examination {arguments.examination} "
+                        f"on instance {instance} or model {model}.")
     # Run the tools:
-    if arguments.cheat and known_tools is not None:
+    if os.getenv("BK_TOOL") == "mcc4mcc-cheat" and known_tools is not None:
         tools = known_tools
-    elif learned_tools is not None:
+    elif os.getenv("BK_TOOL") == "mcc4mcc-mix" and known_tools is not None:
+        tools = known_tools
+    elif os.getenv("BK_TOOL") != "mcc4mcc-cheat" and learned_tools is not None:
         tools = learned_tools
     else:
-        logging.error(f"DO NOT COMPETE")
+        logging.error(f"DO_NOT_COMPETE")
         sys.exit(1)
     path = os.path.abspath(directory)
     # Load docker client:
     client = docker.from_env()
     for entry in tools:
         tool = entry["Tool"]
-        logging.info(f"{examination} {tool} {instance}...")
+        logging.info(f"{arguments.examination} {tool} {instance}...")
         # client.images.pull(f"mccpetrinets/{tool.lower()}")
         container = client.containers.run(
             image=f"mccpetrinets/{tool.lower()}",
@@ -358,7 +364,7 @@ def do_run(arguments):
             },
             environment={
                 "BK_LOG_FILE": "/mcc-data/log",
-                "BK_EXAMINATION": f"{examination}",
+                "BK_EXAMINATION": f"{arguments.examination}",
                 "BK_TIME_CONFINEMENT": "3600",
                 "BK_INPUT": f"{instance}",
                 "BK_TOOL": tool.lower(),
@@ -382,16 +388,13 @@ def do_test(arguments):
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
+        "year": arguments.year,
+        "forget": [],
+        "exclude": [],
     })
     # Read data:
     data.characteristics()
     data.results()
-    # Filter by year:
-    if arguments.year is not None:
-        logging.info(
-            f"Filtering year '{arguments.year}'."
-        )
-        data.filter(lambda e: e["Year"] == arguments.year)
     results = data.results()
     examinations = {x["Examination"] for x in results}
     tools = {x["Tool"] for x in results}
@@ -530,6 +533,12 @@ EXTRACT.add_argument(
     dest="forget",
     default=None,
 )
+EXTRACT.add_argument(
+    "--exclude",
+    help="Exclude tools (comma separated)",
+    dest="exclude",
+    default=None,
+)
 EXTRACT.set_defaults(func=do_extract)
 
 TEST = SUBPARSERS.add_parser(
@@ -581,7 +590,28 @@ TEST.add_argument(
     type=str,
     dest="instance",
 )
+TEST.add_argument(
+    "--exclude",
+    help="Exclude tools (comma separated)",
+    dest="exclude",
+    default=None,
+)
 TEST.set_defaults(func=do_test)
+
+
+def default_prefix():
+    """
+    Computes the default prefix.
+    """
+    if os.getenv("BK_TOOL") \
+            and os.getenv("BK_TOOL") != "mcc4mcc-cheat" \
+            and os.getenv("BK_TOOL") != "mcc4mcc-mix":
+        search = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
+        return search.group(1)
+    return hashlib.md5().hexdigest()[:16]
+
+
+TOOL_PREFIX = default_prefix()
 
 RUN = SUBPARSERS.add_parser(
     "run",
@@ -621,11 +651,10 @@ RUN.add_argument(
     dest="algorithm",
 )
 RUN.add_argument(
-    "--cheat",
-    help="Cheat by using known information",
-    dest="cheat",
-    action="store_true",
-    default=os.getenv("BK_TOOL") == "mcc4mcc-cheat"
+    "--prefix",
+    help="Prefix of generated files",
+    dest="prefix",
+    default=TOOL_PREFIX,
 )
 RUN.set_defaults(func=do_run)
 

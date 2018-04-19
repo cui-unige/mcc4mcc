@@ -14,11 +14,18 @@ VBoxManage unregistervm "${name}" \
   || true
 
 # Download virtual machine:
-rm -f "${name}.vmdk*"
-curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
-     -z "${name}.vmdk.bz2" \
-     -o "${name}.vmdk.bz2"
-tar xf "${name}.vmdk.bz2"
+if [ ! -f "${name}.vmdk.bz2" ]
+then
+  curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
+       -z "${name}.vmdk.bz2" \
+       -o "${name}.vmdk.bz2"
+fi
+
+# Extract image:
+if [ ! -f "${name}.vmdk" ]
+then
+  tar xf "${name}.vmdk.bz2"
+fi
 
 # Launch the virtual machine:
 VBoxManage createvm \
@@ -47,16 +54,16 @@ scp \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/ \
-  from-vm/
-# scp \
-#   -r \
-#   -o "UserKnownHostsFile=/dev/null" \
-#   -o "StrictHostKeyChecking=no" \
-#   -i "../ToolSubmissionKit/bk-private_key" \
-#   -P "${port}" \
-#   mcc@localhost:/usr/local/ \
-#   from-vm/
+  mcc@localhost:/usr/local \
+  from-vm/usr
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "../ToolSubmissionKit/bk-private_key" \
+  -P "${port}" \
+  mcc@localhost:/home/mcc \
+  from-vm/mcc
 rm -rf from-vm/BenchKit/INPUTS/
 
 # Clean:
@@ -64,4 +71,3 @@ VBoxManage controlvm "${name}" \
   poweroff
 VBoxManage unregistervm "${name}" \
   --delete
-rm -f "${name}.vmdk"*

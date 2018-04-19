@@ -16,6 +16,7 @@ RUN true \
         bash \
         libstdc++ \
         gmp \
+        openjdk8-jre-base \
  && git clone --depth=1 git://git.code.sf.net/p/meddly/code-git meddly \
     && cd meddly \
     && autoreconf -fi \
@@ -34,7 +35,10 @@ RUN true \
  && apk del .build-deps \
  && true
 
+COPY from-vm/mcc/BenchKit/bin/cleanparse /usr/share/smart/cleanparse
 COPY mcc-head /usr/bin/
+
+RUN ls -lh /usr/share/smart/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]

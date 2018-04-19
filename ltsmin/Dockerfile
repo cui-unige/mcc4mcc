@@ -111,8 +111,7 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
-COPY formulizer.py /usr/bin/formulizer
-COPY mcc-head      /usr/bin/
+COPY mcc-head /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
