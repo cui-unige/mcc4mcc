@@ -47,16 +47,16 @@ scp \
   -o "StrictHostKeyChecking=no" \
   -i "../ToolSubmissionKit/bk-private_key" \
   -P "${port}" \
-  mcc@localhost:BenchKit/ \
-  from-vm/
-# scp \
-#   -r \
-#   -o "UserKnownHostsFile=/dev/null" \
-#   -o "StrictHostKeyChecking=no" \
-#   -i "../ToolSubmissionKit/bk-private_key" \
-#   -P "${port}" \
-#   mcc@localhost:/usr/local/ \
-#   from-vm/
+  mcc@localhost:/usr/local \
+  from-vm/usr
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "../ToolSubmissionKit/bk-private_key" \
+  -P "${port}" \
+  mcc@localhost:/home/mcc \
+  from-vm/mcc
 rm -rf from-vm/BenchKit/INPUTS/
 
 # Clean:

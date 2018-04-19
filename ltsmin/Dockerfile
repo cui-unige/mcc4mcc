@@ -50,6 +50,13 @@ RUN true \
     && make install \
     && cd ../.. \
     && rm -rf sylvan \
+ && git clone --depth=1 https://github.com/jkeiren/muCRL.git \
+    && cd muCRL \
+    && autoreconf -vfi \
+    && ./configure CC='gcc -O2' --with-64bit --prefix=/usr \
+    && make install \
+    && cd .. \
+    && rm -rf muCRL \
  && git clone --depth=1 https://github.com/lip6/libDDD.git \
     && cd libDDD \
     && autoreconf -vfi \
@@ -111,8 +118,7 @@ RUN true \
  && rm -rf /var/lib/apt/lists/* \
  && true
 
-COPY formulizer.py /usr/bin/formulizer
-COPY mcc-head      /usr/bin/
+COPY mcc-head /usr/bin/
 
 WORKDIR    /mcc-data
 VOLUME     [ "/mcc-data" ]
