@@ -14,11 +14,18 @@ VBoxManage unregistervm "${name}" \
   || true
 
 # Download virtual machine:
-rm -f "${name}.vmdk*"
-curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
-     -z "${name}.vmdk.bz2" \
-     -o "${name}.vmdk.bz2"
-tar xf "${name}.vmdk.bz2"
+if [ ! -f "${name}.vmdk.bz2" ]
+then
+  curl -L "https://mcc.lip6.fr/2017/archives/${name}.vmdk.bz2" \
+       -z "${name}.vmdk.bz2" \
+       -o "${name}.vmdk.bz2"
+fi
+
+# Extract image:
+if [ ! -f "${name}.vmdk" ]
+then
+  tar xf "${name}.vmdk.bz2"
+fi
 
 # Launch the virtual machine:
 VBoxManage createvm \
@@ -65,4 +72,3 @@ VBoxManage controlvm "${name}" \
   poweroff
 VBoxManage unregistervm "${name}" \
   --delete
-rm -f "${name}.vmdk"*
