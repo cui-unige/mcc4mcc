@@ -1,4 +1,4 @@
 #!/bin/bash
 
-/home/mcc/BenchKit/bin/mcc4mcc \
+python3 mcc4mcc \
   --data="/usr/local/share/mcc4mcc"
