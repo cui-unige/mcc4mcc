@@ -9,32 +9,48 @@ using the tools that are already competing.
 Its purpose is to allow research on the algorithm that will choose
 the best tool, depending on the model, examination and formula characteristics.
 
+# Install
+
+This tool can be installed easily with `pip` from the sources:
+
+```sh
+$ pip install .
+```
+We currently do not distribute a packaged version.
+
 # Running the tool
 
 Help can be obtained through:
+
 ```sh
-$ python -m mcc --help
+$ python -m mcc4mcc --help
+```
+
+Or if you have installed the module using `pip`:
+
+```sh
+$ python mcc4mcc
 ```
 
 The following command extracts known and learned data from the results
 of the 2017 edition of the Model Checking Contest:
 
 ```sh
-$ python -m mcc extract --year=2017 --duplicates
+$ python -m mcc4mcc extract --year=2017 --duplicates
 ```
 
 The following command tests if docker images can be run on some examinations
 and models of the Model Checking Contest:
 
 ```sh
-$ python -m mcc test --year=2017
+$ python -m mcc4mcc test --year=2017
 ```
 
 The following command runs `mcc4mcc` with the state space examination
 on the model stored in `./models/TokenRing-PT-005.tgz`:
 
 ```sh
-$ python -m mcc run \
+$ python -m mcc4mcc run \
     --examination=StateSpace \
     --input=./models/TokenRing-PT-005.tgz
 ```
@@ -50,7 +66,7 @@ during machine learning.
 The `--forget` option allows is, for instance:
 
 ```sh
-$ python -m mcc extract \
+$ python -m mcc4mcc extract \
     --duplicates \
     --year=2017 \
     --forget "Deadlock,Live,Quasi Live,Reversible,Safe"
