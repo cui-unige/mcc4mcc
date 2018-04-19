@@ -23,7 +23,8 @@ We currently do not distribute a packaged version.
 Help can be obtained through:
 
 ```sh
-$ python -m mcc4mcc --help
+$ python -m mcc4mcc\
+    --help
 ```
 
 Or if you have installed the module using `pip`:
@@ -36,14 +37,17 @@ The following command extracts known and learned data from the results
 of the 2017 edition of the Model Checking Contest:
 
 ```sh
-$ python -m mcc4mcc extract --year=2017 --duplicates
+$ python -m mcc4mcc extract \
+    --year=2017 \
+    --duplicates
 ```
 
 The following command tests if docker images can be run on some examinations
 and models of the Model Checking Contest:
 
 ```sh
-$ python -m mcc4mcc test --year=2017
+$ python -m mcc4mcc test \
+    --year=2017
 ```
 
 The following command runs `mcc4mcc` with the state space examination
