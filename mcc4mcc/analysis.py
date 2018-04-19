@@ -5,6 +5,7 @@ Analysis of the results of the model checking contest.
 import logging
 import pickle
 import statistics
+from random import shuffle
 import pandas
 from frozendict import frozendict
 from tqdm import tqdm
@@ -331,10 +332,19 @@ def learned(data, options):
     logging.info(
         f"Analyzing learned data."
     )
+    # Keep only some models into a training and a test set:
+    all_models = list(models)
+    shuffle(all_models)
+    training = all_models[:int(len(models)*options["Training"])]
+    if len(training) != len(models):
+        logging.info(
+            f"  Keeping only {len(training)} models of {len(models)}."
+        )
+    # Select entries:
     selected = set()
-    with tqdm(total=len(examinations)*len(models)) as counter:
+    with tqdm(total=len(examinations)*len(training)) as counter:
         for examination in examinations:
-            for model in models:
+            for model in training:
                 subresults = {}
                 maximum = 0
                 for entry in results:

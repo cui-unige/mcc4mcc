@@ -63,15 +63,30 @@ Models can be obtained in the
 In order to create more collisions between models given a set of
 characteristics, it can be interesting to forget some characteristics
 during machine learning.
-The `--forget` option allows is, for instance:
+The `--forget` option allows us to do it, for instance:
 
 ```sh
 $ python -m mcc4mcc extract \
     --duplicates \
     --year=2017 \
-    --forget "Deadlock,Live,Quasi Live,Reversible,Safe"
+    --forget="Deadlock,Live,Quasi Live,Reversible,Safe"
 ```
 
+## Dropping some models during machine learning
+
+It is interesting to remove some models during machine learning,
+in order to check that the algorithm is still able to obtain a good score.
+The `--training` option allows us to do it, for instance:
+
+```sh
+$ python -m mcc4mcc extract \
+    --duplicates \
+    --year=2017 \
+    --training=0.25
+```
+
+The command above keeps only 25% of the models for learning,
+but still computes the score using all the models.
 
 # Obtaining the tool submission kit and models
 

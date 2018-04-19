@@ -159,6 +159,7 @@ def do_extract(arguments):
         "Output Trees": arguments.output_trees,
         "Directory": arguments.data,
         "Prefix": prefix,
+        "Training": arguments.training,
     })
     with open(f"{arguments.data}/{prefix}-values.json", "w") as output:
         json.dump(values.items, output)
@@ -540,6 +541,13 @@ EXTRACT.add_argument(
     help="Exclude tools (comma separated)",
     dest="exclude",
     default=None,
+)
+EXTRACT.add_argument(
+    "--training",
+    help="ratio of models to use during training (for instance 0.5)",
+    dest="training",
+    type=float,
+    default=1,
 )
 EXTRACT.set_defaults(func=do_extract)
 
