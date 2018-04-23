@@ -5,6 +5,9 @@ set -e
 read -r    -p "Docker username? " docker_username
 read -r -s -p "Docker password? " docker_password
 echo
+docker login \
+  --username="${docker_username}" \
+  --password="${docker_password}"
 echo "Creating the virtual machine for the model checking contest."
 
 # Clean:
@@ -39,6 +42,42 @@ VBoxManage modifyvm "mcc4mcc" \
 VBoxManage startvm "mcc4mcc" \
   --type "headless"
 
+# Find docker images:
+docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
+  > "images.txt"
+
+# Create directory for mcc4mcc:
+ssh \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -p 2222 \
+  root@localhost \
+  'bash -s' <<'EOS'
+set -e
+mkdir -p /usr/share/mcc4mcc
+EOS
+
+# Copy required files:
+rm -rf mcc4mcc/__pycache__/
+scp \
+  -r \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  setup.py requirements.txt images.txt \
+  *.p *.json \
+  mcc4mcc \
+  root@localhost:/usr/share/mcc4mcc/
+scp \
+  -o "UserKnownHostsFile=/dev/null" \
+  -o "StrictHostKeyChecking=no" \
+  -i "ToolSubmissionKit/bk-private_key" \
+  -P 2222 \
+  BenchKit_head.sh \
+  mcc@localhost:BenchKit/
+
 # Install dependencies:
 ssh \
   -o "UserKnownHostsFile=/dev/null" \
@@ -48,7 +87,12 @@ ssh \
   root@localhost \
   'bash -s' <<'EOS'
 set -e
+echo "deb http://ftp.de.debian.org/debian testing main" \
+  >> /etc/apt/sources.list
+echo 'APT::Default-Release "stable";' \
+  | tee -a /etc/apt/apt.conf.d/00local
 apt-get update  --yes
+apt-get dist-upgrade --yes
 apt-get upgrade --yes
 apt-get install --yes \
   apt-transport-https \
@@ -65,54 +109,16 @@ add-apt-repository \
    stable"
 apt-get update  --yes
 apt-get install --yes \
+  -t testing \
   docker-ce \
   python3-pip \
   python3-setuptools
 adduser mcc docker
-pip3 install numpy
-pip3 install scikit-learn
-pip3 install xmltodict
-mkdir -p     /usr/share/mcc4mcc
+pip3 install wheel
+pip3 install scipy
+pip3 install /usr/share/mcc4mcc
 chown -R mcc /usr/share/mcc4mcc
 EOS
-
-# Install docker images:
-docker images mccpetrinets/*:latest --format "{{.Repository}}:{{.Tag}}" \
-  > "images.txt"
-
-# Install mcc4mcc:
-rm -rf mcc4mcc/__pycache__/
-scp \
-  -r \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  mcc4mcc \
-  root@localhost:/usr/share/mcc4mcc/mcc4mcc
-scp \
-  -r \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  setup.py requirements.txt \
-  root@localhost:/usr/share/mcc4mcc/
-scp \
-  -r \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  *.p *.json \
-  root@localhost:/usr/share/mcc4mcc/
-scp \
-  -o "UserKnownHostsFile=/dev/null" \
-  -o "StrictHostKeyChecking=no" \
-  -i "ToolSubmissionKit/bk-private_key" \
-  -P 2222 \
-  BenchKit_head.sh \
-  mcc@localhost:BenchKit/
 
 # shellcheck disable=SC2029
 ssh \
@@ -120,12 +126,12 @@ ssh \
   -o "StrictHostKeyChecking=no" \
   -i "ToolSubmissionKit/bk-private_key" \
   -p 2222 \
-  root@localhost \
+  mcc@localhost \
   "DOCKER_USERNAME=${docker_username} \
    DOCKER_PASSWORD=${docker_password} \
    bash -s" <<"EOS"
 set -e
-pip3 install /usr/share/mcc4mcc
+chown -R mcc /usr/share/mcc4mcc
 docker login \
   --username="${DOCKER_USERNAME}" \
   --password="${DOCKER_PASSWORD}"
@@ -133,7 +139,6 @@ for image in $(cat /usr/share/mcc4mcc/images.txt)
 do
   docker pull ${image}
 done
-chown -R mcc /usr/share/mcc4mcc
 EOS
 
 # Stop:
@@ -156,19 +161,19 @@ sync
 EOS
 VBoxManage controlvm "mcc4mcc" \
   poweroff
-rm -f "mcc4mcc.vdi"
-rm -f "mcc4mcc-2018.vmdk"
-VBoxManage clonemedium \
-  --format=VDI \
-  "mcc4mcc.vmdk" \
-  "mcc4mcc.vdi"
-VboxManage modifymedium  \
-  --compact \
-  "mcc4mcc.vdi"
-VBoxManage clonemedium \
-  --format=VMDK \
-  "mcc4mcc.vdi" \
-  "mcc4mcc-2018.vmdk"
-rm -f "mcc4mcc.vdi"
+# rm -f "mcc4mcc.vdi"
+# rm -f "mcc4mcc-2018.vmdk"
+# VBoxManage clonemedium \
+#   --format=VDI \
+#   "mcc4mcc.vmdk" \
+#   "mcc4mcc.vdi"
+# VboxManage modifymedium  \
+#   --compact \
+#   "mcc4mcc.vdi"
+# VBoxManage clonemedium \
+#   --format=VMDK \
+#   "mcc4mcc.vmdk" \
+#   "mcc4mcc-2018.vmdk"
+# rm -f "mcc4mcc.vdi"
 
-echo "The virtual machine has been generated in mcc4mcc-2018.vmdk."
+echo "The virtual machine has been generated in mcc4mcc.vmdk."
