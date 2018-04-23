@@ -346,11 +346,11 @@ def do_run(arguments):
                         f"for examination {arguments.examination} "
                         f"on instance {instance} or model {model}.")
     # Run the tools:
-    if os.getenv("BK_TOOL") == "mcc4mcc-cheat" and known_tools is not None:
+    if arguments.cheat and known_tools is not None:
         tools = known_tools
-    elif os.getenv("BK_TOOL") == "mcc4mcc-mix" and known_tools is not None:
-        tools = known_tools
-    elif os.getenv("BK_TOOL") != "mcc4mcc-cheat" and learned_tools is not None:
+    elif arguments.cheat and learned_tools is not None:
+        tools = learned_tools
+    elif learned_tools is not None:
         tools = learned_tools
     else:
         logging.error(f"DO_NOT_COMPETE")
@@ -619,20 +619,8 @@ TEST.add_argument(
 )
 TEST.set_defaults(func=do_test)
 
-
-def default_prefix():
-    """
-    Computes the default prefix.
-    """
-    if os.getenv("BK_TOOL") \
-            and os.getenv("BK_TOOL") != "mcc4mcc-cheat" \
-            and os.getenv("BK_TOOL") != "mcc4mcc-mix":
-        search = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
-        return search.group(1)
-    return hashlib.md5().hexdigest()[:16]
-
-
-TOOL_PREFIX = default_prefix()
+SEARCH = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
+TOOL_PREFIX = SEARCH.group(1)
 
 RUN = SUBPARSERS.add_parser(
     "run",
@@ -676,6 +664,12 @@ RUN.add_argument(
     help="Prefix of generated files",
     dest="prefix",
     default=TOOL_PREFIX,
+)
+RUN.add_argument(
+    "--cheat",
+    help="Cheat using known information",
+    dest="cheat",
+    action="store_true",
 )
 RUN.set_defaults(func=do_run)
 
