@@ -14,9 +14,9 @@ the best tool, depending on the model, examination and formula characteristics.
 This tool can be installed easily with `pip` from the sources:
 
 ```sh
-$    git clone https://github.com/cui-unige/mcc4mcc.git \
-  && cd mcc4mcc \
-  && pip install .
+$  git clone https://github.com/cui-unige/mcc4mcc.git \
+&& cd mcc4mcc \
+&& pip install .
 ```
 We currently do not distribute a packaged version.
 
