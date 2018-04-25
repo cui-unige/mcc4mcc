@@ -517,14 +517,14 @@ EXTRACT = SUBPARSERS.add_parser(
 )
 EXTRACT.add_argument(
     "--results",
-    help="results of the model checking contest",
+    help="path to the results of the model checking contest",
     type=str,
     dest="results",
     default=os.getcwd() + "/results.csv",
 )
 EXTRACT.add_argument(
     "--characteristics",
-    help="model characteristics from the Petri net repository",
+    help="path to the model characteristics from the Petri net repository",
     type=str,
     dest="characteristics",
     default=os.getcwd() + "/characteristics.csv",
