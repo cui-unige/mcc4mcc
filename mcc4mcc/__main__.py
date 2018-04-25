@@ -124,23 +124,28 @@ def do_extract(arguments):
         arguments.forget = sorted(arguments.forget.split(","))
     # Compute prefix for generated files:
     hasher = hashlib.md5()
-    for to_forget in arguments.forget:
-        hasher.update(bytearray(to_forget, "utf8"))
-    for to_exclude in arguments.exclude:
-        hasher.update(bytearray(to_exclude, "utf8"))
+    with open(arguments.characteristics, "rb") as hinput:
+        hasher.update(hinput.read())
+    characteristics_hash = hasher.hexdigest()
+    hasher = hashlib.md5()
+    with open(arguments.results, "rb") as hinput:
+        hasher.update(hinput.read())
+    results_hash = hasher.hexdigest()
+    as_json = json.dumps({
+        "characteristics": characteristics_hash,
+        "results": results_hash,
+        "duplicates": arguments.duplicates,
+        "exclude": arguments.exclude,
+        "forget": arguments.forget,
+        "training": arguments.training,
+        "year": arguments.year,
+    }, sort_keys=True)
+    hasher = hashlib.md5()
+    hasher.update(bytearray(as_json, "utf8"))
     prefix = hasher.hexdigest()[:16]
     logging.info(f"Prefix is {prefix}.")
     with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
-        json.dump({
-            "characteristics": arguments.characteristics,
-            "data": arguments.data,
-            "duplicates": arguments.duplicates,
-            "exclude": arguments.exclude,
-            "forget": arguments.forget,
-            "results": arguments.results,
-            "training": arguments.training,
-            "year": arguments.year,
-        }, output)
+        json.dump(as_json, output)
     # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
@@ -619,8 +624,24 @@ TEST.add_argument(
 )
 TEST.set_defaults(func=do_test)
 
-SEARCH = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
-TOOL_PREFIX = SEARCH.group(1)
+
+def default_prefix():
+    """
+    Extracts the default prefix.
+    """
+    bk_tool = os.getenv("BK_TOOL")
+    if bk_tool is not None:
+        search = re.search(r"^mcc4mcc-(.*)$", bk_tool)
+        result = search.group(1)
+    else:
+        prefixes = []
+        for filename in os.listdir(os.getcwd()):
+            if filename.endswith("-configuration.json"):
+                search = re.search(r"^([^-]+)-configuration.json$", filename)
+                prefixes.append(search.group(1))
+        result = sorted(prefixes)[0]
+    return result
+
 
 RUN = SUBPARSERS.add_parser(
     "run",
@@ -663,7 +684,7 @@ RUN.add_argument(
     "--prefix",
     help="Prefix of generated files",
     dest="prefix",
-    default=TOOL_PREFIX,
+    default=default_prefix(),
 )
 RUN.add_argument(
     "--cheat",
