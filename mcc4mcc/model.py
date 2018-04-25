@@ -6,6 +6,7 @@ import logging
 import csv
 import re
 import itertools
+import numpy
 from frozendict import frozendict
 from tqdm import tqdm
 
@@ -246,6 +247,57 @@ class Data:
                 name = entry["Tool"]
                 if name in self.configuration["renaming"]:
                     entry["Tool"] = self.configuration["renaming"][name]
+                counter.update(1)
+        # Compute relative speed of tools:
+        # Find fastest and most memory efficient for each examination/instance:
+        best_time = {}
+        best_memory = {}
+        with tqdm(total=len(result)) as counter:
+            for entry in result:
+                examination = entry["Examination"]
+                instance = entry["Instance"]
+                time = entry["Time"]
+                memory = entry["Memory"]
+                if time == 0:
+                    time = 1
+                if memory == 0:
+                    memory = 1
+                if examination not in best_time:
+                    best_time[examination] = {}
+                if instance not in best_time[examination]:
+                    best_time[examination][instance] = None
+                if best_time[examination][instance] is None:
+                    best_time[examination][instance] = time
+                elif time < best_time[examination][instance]:
+                    best_time[examination][instance] = time
+                if examination not in best_memory:
+                    best_memory[examination] = {}
+                if instance not in best_memory[examination]:
+                    best_memory[examination][instance] = None
+                if best_memory[examination][instance] is None:
+                    best_memory[examination][instance] = memory
+                elif memory < best_memory[examination][instance]:
+                    best_memory[examination][instance] = memory
+                counter.update(1)
+        # Compute relative best time and memory:
+        with tqdm(total=len(result)) as counter:
+            for entry in result:
+                examination = entry["Examination"]
+                instance = entry["Instance"]
+                time = entry["Time"]
+                memory = entry["Memory"]
+                entry["Relative-Time"] = \
+                    time / best_time[examination][instance]
+                entry["Relative-Memory"] = \
+                    memory / best_memory[examination][instance]
+                entry["Relative-Time"] = min(
+                    entry["Relative-Time"],
+                    numpy.finfo("float32").max,
+                )
+                entry["Relative-Memory"] = min(
+                    entry["Relative-Memory"],
+                    numpy.finfo("float32").max,
+                )
                 counter.update(1)
         # Convert to fronzendict:
         result = [frozendict(x) for x in result]

@@ -5,6 +5,7 @@ Analysis of the results of the model checking contest.
 import logging
 import pickle
 import statistics
+from random import shuffle
 import pandas
 from frozendict import frozendict
 from tqdm import tqdm
@@ -121,6 +122,8 @@ def choice_of(data, alg_or_tool, values=None):
                     if values is None:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
+                    test["Relative-Time"] = 1  # FIXME
+                    test["Relative-Memory"] = 1  # FIXME
                     for key, value in model.items():
                         if key in data.configuration["forget"]:
                             test[key] = values.to_learning(None)
@@ -169,6 +172,8 @@ def score_of(data, alg_or_tool, values=None):
                     if values is None:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
+                    test["Relative-Time"] = values.to_learning(1)  # FIXME
+                    test["Relative-Memory"] = values.to_learning(1)  # FIXME
                     for key, value in model.items():
                         if key in data.configuration["forget"]:
                             test[key] = values.to_learning(None)
@@ -190,6 +195,18 @@ def score_of(data, alg_or_tool, values=None):
                     ]
                     if entries:
                         subscore += 16
+                    best_time = [
+                        x for x in entries
+                        if x["Relative-Time"] == 1
+                    ]
+                    if best_time:
+                        subscore += 2
+                    best_memory = [
+                        x for x in entries
+                        if x["Relative-Memory"] == 1
+                    ]
+                    if best_memory:
+                        subscore += 2
                 subscore = subscore / len(instances)
                 result[examination] = result[examination] + subscore
                 counter.update(1)
@@ -209,7 +226,7 @@ def max_score(data):
     models = {x["Model"] for x in results}
     for _ in examinations:
         for _ in models:
-            result += 16
+            result += 20
     return int(result)
 
 
@@ -315,10 +332,19 @@ def learned(data, options):
     logging.info(
         f"Analyzing learned data."
     )
+    # Keep only some models into a training and a test set:
+    all_models = list(models)
+    shuffle(all_models)
+    training = all_models[:int(len(models)*options["Training"])]
+    if len(training) != len(models):
+        logging.info(
+            f"  Keeping only {len(training)} models of {len(models)}."
+        )
+    # Select entries:
     selected = set()
-    with tqdm(total=len(examinations)*len(models)) as counter:
+    with tqdm(total=len(examinations)*len(training)) as counter:
         for examination in examinations:
-            for model in models:
+            for model in training:
                 subresults = {}
                 maximum = 0
                 for entry in results:

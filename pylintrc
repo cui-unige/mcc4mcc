@@ -203,9 +203,10 @@ spelling-store-unknown-words=no
 [MISCELLANEOUS]
 
 # List of note tags to take in consideration, separated by a comma.
-notes=FIXME,
-      XXX,
-      TODO
+notes=
+#     FIXME,
+#      XXX,
+#      TODO
 
 
 [TYPECHECK]
@@ -527,7 +528,7 @@ max-public-methods=20
 max-returns=6
 
 # Maximum number of statements in function / method body
-max-statements=100
+max-statements=150
 
 # Minimum number of public methods for a class (see R0903).
 min-public-methods=0

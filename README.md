@@ -9,78 +9,117 @@ using the tools that are already competing.
 Its purpose is to allow research on the algorithm that will choose
 the best tool, depending on the model, examination and formula characteristics.
 
-# Install
+## Installing the tool
 
 This tool can be installed easily with `pip` from the sources:
 
 ```sh
-$ pip install .
+$    git clone https://github.com/cui-unige/mcc4mcc.git \
+  && cd mcc4mcc \
+  && pip install .
 ```
 We currently do not distribute a packaged version.
 
-# Running the tool
+## Obtaining the tool submission kit and models
+
+The [MCC Submission Kit](https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz)
+can be downloaded automatically, and models extracted from it using the
+following command:
+
+```sh
+$ ./prepare
+```
+
+The submission kit is put in the `ToolSubmissionKit` directory,
+and models are copied in the `models` directory.
+
+## Running the tool
 
 Help can be obtained through:
 
 ```sh
-$ python -m mcc4mcc --help
+$ python3 -m mcc4mcc \
+    --help
 ```
 
-Or if you have installed the module using `pip`:
-
-```sh
-$ python mcc4mcc
-```
+## Extracting information from the previous edition
 
 The following command extracts known and learned data from the results
 of the 2017 edition of the Model Checking Contest:
 
 ```sh
-$ python -m mcc4mcc extract --year=2017 --duplicates
+$ python3 -m mcc4mcc \
+    extract \
+    --year=2017
 ```
+
+It creates several files, that are used to chose the correct tool to run:
+
+* `<prefix>-configuration.json`
+* `<prefix>-known.json`
+* `<prefix>-learned.json`
+* `<prefix>-learned.<algorithm>.p`
+* `<prefix>-values.json`
+
+## Running the model checker collection
+
+The following command runs `mcc4mcc` with the state space examination
+on the model stored in `./models/TokenRing-PT-005.tgz`.
+The `prefix` option tells the tool to use files generated with
+the given prefix.
+It allows users to generate files for several extraction parameters,
+and use them by giving their prefix.
+
+```sh
+$ python3 -m mcc4mcc \
+    run \
+    --examination=StateSpace \
+    --input=./models/TokenRing-PT-005.tgz \
+    --prefix=7e556e9247727f60
+```
+
+## Testing the docker images
 
 The following command tests if docker images can be run on some examinations
 and models of the Model Checking Contest:
 
 ```sh
-$ python -m mcc4mcc test --year=2017
+$ python3 -m mcc4mcc \
+    test \
+    --year=2017
 ```
-
-The following command runs `mcc4mcc` with the state space examination
-on the model stored in `./models/TokenRing-PT-005.tgz`:
-
-```sh
-$ python -m mcc4mcc run \
-    --examination=StateSpace \
-    --input=./models/TokenRing-PT-005.tgz
-```
-
-Models can be obtained in the
-[MCC Submission Kit](https://mcc.lip6.fr/archives/ToolSubmissionKit.tar.gz).
 
 ## Forgetting some model characteristics
 
 In order to create more collisions between models given a set of
 characteristics, it can be interesting to forget some characteristics
 during machine learning.
-The `--forget` option allows is, for instance:
+The `--forget` option allows us to do it, for instance:
 
 ```sh
-$ python -m mcc4mcc extract \
+$ python3 -m mcc4mcc extract \
     --duplicates \
     --year=2017 \
-    --forget "Deadlock,Live,Quasi Live,Reversible,Safe"
+    --forget="Deadlock,Live,Quasi Live,Reversible,Safe"
 ```
 
+## Dropping some models during machine learning
 
-# Obtaining the tool submission kit and models
-
-The tool submission kit can be downloaded automatically,
-and models extracted from it using the following command:
+It is interesting to remove some models during machine learning,
+in order to check that the algorithm is still able to obtain a good score.
+The `--training` option allows us to do it.
 
 ```sh
-$ ./prepare
+$ python3 -m mcc4mcc extract \
+    --duplicates \
+    --year=2017 \
+    --training=0.25
 ```
+
+The command above keeps only 25% of the models for learning,
+but still computes the score using all the models.
+The `--duplicates` option allows the tool to keep duplicate lines
+during machine learning.
 
 # Building the docker images
 
@@ -102,7 +141,7 @@ The following command creates a virtual machine containing `mcc4mcc`
 dedicated to the Model Checking Contest:
 
 ```sh
-$ ./install
+$ ./create-vm
 ```
 
-The virtual machine is created as `mcc4mcc-2018.vmdk`.
+The virtual machine is created as `mcc4mcc.vmdk`.

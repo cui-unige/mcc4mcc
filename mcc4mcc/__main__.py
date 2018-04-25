@@ -124,12 +124,28 @@ def do_extract(arguments):
         arguments.forget = sorted(arguments.forget.split(","))
     # Compute prefix for generated files:
     hasher = hashlib.md5()
-    for to_forget in arguments.forget:
-        hasher.update(bytearray(to_forget, "utf8"))
-    for to_exclude in arguments.exclude:
-        hasher.update(bytearray(to_exclude, "utf8"))
+    with open(arguments.characteristics, "rb") as hinput:
+        hasher.update(hinput.read())
+    characteristics_hash = hasher.hexdigest()
+    hasher = hashlib.md5()
+    with open(arguments.results, "rb") as hinput:
+        hasher.update(hinput.read())
+    results_hash = hasher.hexdigest()
+    as_json = json.dumps({
+        "characteristics": characteristics_hash,
+        "results": results_hash,
+        "duplicates": arguments.duplicates,
+        "exclude": arguments.exclude,
+        "forget": arguments.forget,
+        "training": arguments.training,
+        "year": arguments.year,
+    }, sort_keys=True)
+    hasher = hashlib.md5()
+    hasher.update(bytearray(as_json, "utf8"))
     prefix = hasher.hexdigest()[:16]
     logging.info(f"Prefix is {prefix}.")
+    with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
+        json.dump(as_json, output)
     # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
@@ -159,6 +175,7 @@ def do_extract(arguments):
         "Output Trees": arguments.output_trees,
         "Directory": arguments.data,
         "Prefix": prefix,
+        "Training": arguments.training,
     })
     with open(f"{arguments.data}/{prefix}-values.json", "w") as output:
         json.dump(values.items, output)
@@ -229,6 +246,8 @@ def do_run(arguments):
     values = Values(translations)
     # Find input:
     directory = unarchive(arguments.input)
+    if directory is None:
+        sys.exit(1)
     if arguments.instance is None:
         instance = pathlib.PurePath(directory).stem
     else:
@@ -291,6 +310,8 @@ def do_run(arguments):
         "Examination": arguments.examination,
         "Place/Transition": (not is_colored) or has_pt,
         "Colored": is_colored or has_colored,
+        "Relative-Time": 1,  # FIXME
+        "Relative-Memory": 1,  # FIXME
     }
     for value in verdict["toolspecific"]["verdict"]:
         if value["@value"] == "true":
@@ -332,11 +353,11 @@ def do_run(arguments):
                         f"for examination {arguments.examination} "
                         f"on instance {instance} or model {model}.")
     # Run the tools:
-    if os.getenv("BK_TOOL") == "mcc4mcc-cheat" and known_tools is not None:
+    if arguments.cheat and known_tools is not None:
         tools = known_tools
-    elif os.getenv("BK_TOOL") == "mcc4mcc-mix" and known_tools is not None:
-        tools = known_tools
-    elif os.getenv("BK_TOOL") != "mcc4mcc-cheat" and learned_tools is not None:
+    elif arguments.cheat and learned_tools is not None:
+        tools = learned_tools
+    elif learned_tools is not None:
         tools = learned_tools
     else:
         logging.error(f"DO_NOT_COMPETE")
@@ -496,14 +517,14 @@ EXTRACT = SUBPARSERS.add_parser(
 )
 EXTRACT.add_argument(
     "--results",
-    help="results of the model checking contest",
+    help="path to the results of the model checking contest",
     type=str,
     dest="results",
     default=os.getcwd() + "/results.csv",
 )
 EXTRACT.add_argument(
     "--characteristics",
-    help="model characteristics from the Petri net repository",
+    help="path to the model characteristics from the Petri net repository",
     type=str,
     dest="characteristics",
     default=os.getcwd() + "/characteristics.csv",
@@ -538,6 +559,13 @@ EXTRACT.add_argument(
     help="Exclude tools (comma separated)",
     dest="exclude",
     default=None,
+)
+EXTRACT.add_argument(
+    "--training",
+    help="ratio of models to use during training (for instance 0.5)",
+    dest="training",
+    type=float,
+    default=1,
 )
 EXTRACT.set_defaults(func=do_extract)
 
@@ -601,17 +629,21 @@ TEST.set_defaults(func=do_test)
 
 def default_prefix():
     """
-    Computes the default prefix.
+    Extracts the default prefix.
     """
-    if os.getenv("BK_TOOL") \
-            and os.getenv("BK_TOOL") != "mcc4mcc-cheat" \
-            and os.getenv("BK_TOOL") != "mcc4mcc-mix":
-        search = re.search(r"^mcc4mcc-(.*)$", os.getenv("BK_TOOL"))
-        return search.group(1)
-    return hashlib.md5().hexdigest()[:16]
+    bk_tool = os.getenv("BK_TOOL")
+    if bk_tool is not None:
+        search = re.search(r"^mcc4mcc-(.*)$", bk_tool)
+        result = search.group(1)
+    else:
+        prefixes = []
+        for filename in os.listdir(os.getcwd()):
+            if filename.endswith("-configuration.json"):
+                search = re.search(r"^([^-]+)-configuration.json$", filename)
+                prefixes.append(search.group(1))
+        result = sorted(prefixes)[0]
+    return result
 
-
-TOOL_PREFIX = default_prefix()
 
 RUN = SUBPARSERS.add_parser(
     "run",
@@ -654,7 +686,13 @@ RUN.add_argument(
     "--prefix",
     help="Prefix of generated files",
     dest="prefix",
-    default=TOOL_PREFIX,
+    default=default_prefix(),
+)
+RUN.add_argument(
+    "--cheat",
+    help="Cheat using known information",
+    dest="cheat",
+    action="store_true",
 )
 RUN.set_defaults(func=do_run)
 

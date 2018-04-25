@@ -1,4 +1,12 @@
-#!/bin/bash
+#! /usr/bin/env bash
 
-python3 mcc4mcc \
-  --data="/usr/local/share/mcc4mcc"
+if [ ! -z "${BK_CHEAT+x}" ]
+then
+  cheat="--cheat"
+fi
+
+python3 \
+  -m mcc4mcc \
+  --data="/usr/share/mcc4mcc" \
+  run \
+  ${cheat}
