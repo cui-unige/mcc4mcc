@@ -246,6 +246,8 @@ def do_run(arguments):
     values = Values(translations)
     # Find input:
     directory = unarchive(arguments.input)
+    if directory is None:
+        sys.exit(1)
     if arguments.instance is None:
         instance = pathlib.PurePath(directory).stem
     else:
