@@ -141,7 +141,7 @@ The following command creates a virtual machine containing `mcc4mcc`
 dedicated to the Model Checking Contest:
 
 ```sh
-$ ./install
+$ ./create-vm
 ```
 
 The virtual machine is created as `mcc4mcc.vmdk`.

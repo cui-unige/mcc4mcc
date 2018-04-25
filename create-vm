@@ -67,7 +67,7 @@ scp \
   -i "ToolSubmissionKit/bk-private_key" \
   -P 2222 \
   setup.py requirements.txt images.txt \
-  *.p *.json \
+  ./*.p ./*.json \
   mcc4mcc \
   root@localhost:/usr/share/mcc4mcc/
 scp \
