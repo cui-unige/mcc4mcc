@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import logging
 import os
+import random
 # import getpass
 import json
 import pathlib
@@ -17,13 +18,14 @@ import re
 import sys
 import tempfile
 import tarfile
+import numpy
 import pandas
 import xmltodict
 import docker
 
 from mcc4mcc.analysis import known, learned, score_of, max_score, \
-    characteristics_of
-from mcc4mcc.model import Values, Data, value_of
+    characteristics_of, REMOVE
+from mcc4mcc.model import Values, Data, value_of, CHARACTERISTICS
 
 
 VERDICTS = {
@@ -495,6 +497,51 @@ def do_test(arguments):
             logging.info(f"  {tool}: {value}")
 
 
+def do_experiment(arguments):
+    """
+    Main function for the experiment command.
+    """
+    # Load data:
+    data = Data({
+        "characteristics": arguments.characteristics,
+        "results": arguments.results,
+        "renaming": RENAMING,
+        "exclude": [],
+        "year": arguments.year,
+    })
+    # Read data:
+    data.characteristics()
+    # Use results:
+    data.results()
+    result = {}
+    if arguments.training:
+        result["Training"] = {}
+        for training in reversed(numpy.arange(0.05, 1.05, 0.05)):
+            logging.info(f"Running experiment with {training} training.")
+            result["Training"][training] = learned(data, {
+                "Duplicates": arguments.duplicates,
+                "Training": training,
+                "Forget": [],
+            })
+    if arguments.forget:
+        result["Forget"] = {}
+        characteristics = []
+        for characteristic in CHARACTERISTICS:
+            if characteristic not in REMOVE:
+                characteristics.append(characteristic)
+        for forget_n in range(0, len(characteristics)+1):
+            random.shuffle(characteristics)
+            forget = characteristics[:forget_n]
+            logging.info(f"Running experiment forgetting {forget}.")
+            result["Forget"][forget_n] = learned(data, {
+                "Duplicates": arguments.duplicates,
+                "Training": 1.0,
+                "Forget": forget,
+            })
+    with open(f"{arguments.data}/experiment.json", "w") as output:
+        output.write(json.dumps(result, sort_keys=True))
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s: %(message)s",
@@ -696,6 +743,51 @@ RUN.add_argument(
     action="store_true",
 )
 RUN.set_defaults(func=do_run)
+
+EXPERIMENT = SUBPARSERS.add_parser(
+    "experiment",
+    description="Experiment",
+)
+EXPERIMENT.add_argument(
+    "--results",
+    help="path to the results of the model checking contest",
+    type=str,
+    dest="results",
+    default=os.getcwd() + "/results.csv",
+)
+EXPERIMENT.add_argument(
+    "--characteristics",
+    help="path to the model characteristics from the Petri net repository",
+    type=str,
+    dest="characteristics",
+    default=os.getcwd() + "/characteristics.csv",
+)
+EXPERIMENT.add_argument(
+    "--year",
+    help="Use results for a specific year (YYYY format).",
+    type=int,
+    dest="year",
+)
+EXPERIMENT.add_argument(
+    "--duplicates",
+    help="Allow duplicate entries",
+    dest="duplicates",
+    action="store_true"
+)
+EXPERIMENT.add_argument(
+    "--forget",
+    help="Vary the forgot characteristics",
+    dest="forget",
+    action="store_true",
+)
+EXPERIMENT.add_argument(
+    "--training",
+    help="Vary the training rate",
+    dest="training",
+    action="store_true",
+)
+EXPERIMENT.set_defaults(func=do_experiment)
+
 
 ARGUMENTS = PARSER.parse_args()
 if "func" in ARGUMENTS:
