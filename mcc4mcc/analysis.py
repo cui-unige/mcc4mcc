@@ -339,6 +339,8 @@ def learned(data, options):
     all_models = list(models)
     shuffle(all_models)
     training = all_models[:int(len(models)*options["Training"])]
+    if not training:
+        training = all_models[0]
     if len(training) != len(models):
         logging.info(
             f"  Keeping only {len(training)} models of {len(models)}."
