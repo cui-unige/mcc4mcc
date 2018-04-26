@@ -513,31 +513,44 @@ def do_experiment(arguments):
     data.characteristics()
     # Use results:
     data.results()
-    result = {}
+    result = []
     if arguments.training:
-        result["Training"] = {}
         for training in reversed(numpy.arange(0.05, 1.05, 0.05)):
             logging.info(f"Running experiment with {training} training.")
-            result["Training"][training] = learned(data, {
+            subresult = learned(data, {
                 "Duplicates": arguments.duplicates,
                 "Training": training,
                 "Forget": [],
-            })
+            })[0]
+            for entry in subresult:
+                result.append({
+                    "Duplicates": arguments.duplicates,
+                    "Training": training,
+                    "Forget": [],
+                    "Result": entry,
+                })
     if arguments.forget:
-        result["Forget"] = {}
         characteristics = []
         for characteristic in CHARACTERISTICS:
             if characteristic not in REMOVE:
                 characteristics.append(characteristic)
         for forget_n in range(0, len(characteristics)+1):
-            random.shuffle(characteristics)
-            forget = characteristics[:forget_n]
-            logging.info(f"Running experiment forgetting {forget}.")
-            result["Forget"][forget_n] = learned(data, {
-                "Duplicates": arguments.duplicates,
-                "Training": 1.0,
-                "Forget": forget,
-            })
+            for _ in range(0, arguments.forget):
+                random.shuffle(characteristics)
+                forget = characteristics[:forget_n]
+                logging.info(f"Running experiment forgetting {forget}.")
+                subresult = learned(data, {
+                    "Duplicates": arguments.duplicates,
+                    "Training": 1.0,
+                    "Forget": forget,
+                })[0]
+                for entry in subresult:
+                    result.append({
+                        "Duplicates": arguments.duplicates,
+                        "Training": 1.0,
+                        "Forget": forget,
+                        "Result": entry,
+                    })
     with open(f"{arguments.data}/experiment.json", "w") as output:
         output.write(json.dumps(result, sort_keys=True))
 
@@ -776,9 +789,10 @@ EXPERIMENT.add_argument(
 )
 EXPERIMENT.add_argument(
     "--forget",
-    help="Vary the forgot characteristics",
+    help="Iterations in forgetting of characteristics",
+    type=int,
     dest="forget",
-    action="store_true",
+    default=0,
 )
 EXPERIMENT.add_argument(
     "--training",
