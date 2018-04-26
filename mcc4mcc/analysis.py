@@ -2,6 +2,7 @@
 Analysis of the results of the model checking contest.
 """
 
+import copy
 import logging
 import pickle
 import statistics
@@ -20,7 +21,7 @@ REMOVE = [
 ]
 
 
-def characteristics_of(data):
+def characteristics_of(data, options):
     """
     Computes the average models per characteristics set.
     """
@@ -28,7 +29,7 @@ def characteristics_of(data):
     all_characteristics = set({})
     for _, model in data.characteristics().items():
         for key in model.keys():
-            if key not in data.configuration["forget"]:
+            if key not in options["Forget"]:
                 all_characteristics.add(key)
     logging.info(f"Characteristics taken into account are:")
     for char in sorted(all_characteristics):
@@ -37,7 +38,7 @@ def characteristics_of(data):
     result = {}
     for identifier, model in data.characteristics().items():
         stripped = dict(model)
-        for characteristic in data.configuration["forget"]:
+        for characteristic in options["Forget"]:
             del stripped[characteristic]
         if "Id" in stripped:
             del stripped["Id"]
@@ -86,7 +87,7 @@ def characteristics_of(data):
 #     return result
 
 
-def choice_of(data, alg_or_tool, values=None):
+def choice_of(data, alg_or_tool, options):
     """
     Computes for each examination the repartition of choices.
     """
@@ -119,13 +120,15 @@ def choice_of(data, alg_or_tool, values=None):
                     tool = alg_or_tool
                 else:
                     test = {}
-                    if values is None:
+                    if "Values" in options:
+                        values = options["Values"]
+                    else:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
                     test["Relative-Time"] = 1  # FIXME
                     test["Relative-Memory"] = 1  # FIXME
                     for key, value in model.items():
-                        if key in data.configuration["forget"]:
+                        if key in options["Forget"]:
                             test[key] = values.to_learning(None)
                         elif key not in REMOVE \
                                 and key not in TECHNIQUES:
@@ -138,7 +141,7 @@ def choice_of(data, alg_or_tool, values=None):
     return result
 
 
-def score_of(data, alg_or_tool, values=None):
+def score_of(data, alg_or_tool, options):
     """
     Computes a score using the rules from the MCC.
     """
@@ -169,13 +172,15 @@ def score_of(data, alg_or_tool, values=None):
                     tool = alg_or_tool
                 else:
                     test = {}
-                    if values is None:
+                    if "Values" in options:
+                        values = options["Values"]
+                    else:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
                     test["Relative-Time"] = values.to_learning(1)  # FIXME
                     test["Relative-Memory"] = values.to_learning(1)  # FIXME
                     for key, value in model.items():
-                        if key in data.configuration["forget"]:
+                        if key in options["Forget"]:
                             test[key] = values.to_learning(None)
                         elif key not in REMOVE \
                                 and key not in TECHNIQUES:
@@ -321,8 +326,6 @@ def learned(data, options):
     """
     Analyzes learned data.
     """
-    directory = options["Directory"]
-    prefix = options["Prefix"]
     result = []
     results = data.results()
     data.characteristics()
@@ -370,13 +373,13 @@ def learned(data, options):
         for entry in selected:
             s_entry = {}
             for key, value in entry.items():
-                if key in data.configuration["forget"]:
+                if key in options["Forget"]:
                     s_entry[key] = values.to_learning(None)
                 elif key not in REMOVE \
                         and key not in TECHNIQUES:
                     s_entry[key] = values.to_learning(value)
             for key, value in entry["Model"].items():
-                if key in data.configuration["forget"]:
+                if key in options["Forget"]:
                     s_entry[key] = values.to_learning(None)
                 elif key not in REMOVE:
                     s_entry[key] = values.to_learning(value)
@@ -403,8 +406,10 @@ def learned(data, options):
             "Is-Algorithm": True,
         }
         algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
+        coptions = copy.copy(options)
+        coptions["Values"] = values
         # Compute score:
-        score = score_of(data, algorithm, values)
+        score = score_of(data, algorithm, coptions)
         total = 0
         for key, value in score.items():
             alg_results[key] = value
@@ -412,24 +417,30 @@ def learned(data, options):
         logging.info(f"  Score: {total}")
         result.append(alg_results)
         # Compute choice:
-        choice = choice_of(data, algorithm, values)
-        for examination in sorted(examinations):
-            logging.info(f"  In {examination}:")
-            srt = sorted(
-                choice[examination].items(),
-                key=lambda e: e[1],
-                reverse=True
-            )
-            for entry in srt:
-                tool = entry[0]
-                value = entry[1]
-                if value > 0:
-                    logging.info(f"  * {tool} is chosen {value} times")
+        if "Choice" in options and options["Choice"]:
+            choice = choice_of(data, algorithm, coptions)
+            for examination in sorted(examinations):
+                logging.info(f"  In {examination}:")
+                srt = sorted(
+                    choice[examination].items(),
+                    key=lambda e: e[1],
+                    reverse=True
+                )
+                for entry in srt:
+                    tool = entry[0]
+                    value = entry[1]
+                    if value > 0:
+                        logging.info(f"  * {tool} is chosen {value} times")
         # Store algorithm:
-        with open(f"{directory}/{prefix}-learned.{name}.p", "wb") as output:
-            pickle.dump(algorithm, output)
+        if "Directory" in options and "Prefix" in options:
+            directory = options["Directory"]
+            prefix = options["Prefix"]
+            with open(f"{directory}/{prefix}-learned.{name}.p", "wb") \
+                    as output:
+                pickle.dump(algorithm, output)
         # Output decision tree and random forest to graphviz:
-        if options["Output Trees"] \
+        if "Output Trees" in options \
+                and options["Output Trees"] \
                 and name in ["decision-tree", "random-forest"]:
             tree.export_graphviz(
                 algorithm,

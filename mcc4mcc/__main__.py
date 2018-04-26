@@ -145,20 +145,28 @@ def do_extract(arguments):
     prefix = hasher.hexdigest()[:16]
     logging.info(f"Prefix is {prefix}.")
     with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
-        json.dump(as_json, output)
+        output.write(as_json)
     # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
-        "forget": arguments.forget,
         "exclude": arguments.exclude,
         "year": arguments.year,
     })
+    options = {
+        "Choice": True,
+        "Duplicates": arguments.duplicates,
+        "Output Trees": arguments.output_trees,
+        "Directory": arguments.data,
+        "Prefix": prefix,
+        "Forget": arguments.forget,
+        "Training": arguments.training,
+    }
     # Read data:
     data.characteristics()
     # Compute the characteristics for models:
-    characteristics_of(data)
+    characteristics_of(data, options)
     # Use results:
     data.results()
     examinations = {x["Examination"] for x in data.results()}
@@ -170,19 +178,13 @@ def do_extract(arguments):
     with open(f"{arguments.data}/{prefix}-known.json", "w") as output:
         json.dump(known_data, output)
     # Extract learned data:
-    learned_data, values = learned(data, {
-        "Duplicates": arguments.duplicates,
-        "Output Trees": arguments.output_trees,
-        "Directory": arguments.data,
-        "Prefix": prefix,
-        "Training": arguments.training,
-    })
+    learned_data, values = learned(data, options)
     with open(f"{arguments.data}/{prefix}-values.json", "w") as output:
         json.dump(values.items, output)
     # Compute scores for tools:
     for tool in sorted(tools):
         logging.info(f"Computing score of tool: {tool}.")
-        score = score_of(data, tool)
+        score = score_of(data, tool, options)
         subresult = {
             "Algorithm": tool,
             "Is-Tool": True,
@@ -410,7 +412,6 @@ def do_test(arguments):
         "results": arguments.results,
         "renaming": RENAMING,
         "year": arguments.year,
-        "forget": [],
         "exclude": [],
     })
     # Read data:
