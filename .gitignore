@@ -111,6 +111,7 @@ venv.bak/
 *-known.json
 *-learned.json
 *-values.json
+experiment.json
 
 # Virtual images:
 *.vmdk.bz2
