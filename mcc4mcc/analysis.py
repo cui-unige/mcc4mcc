@@ -392,7 +392,7 @@ def learned(data, options):
     # Compute efficiency for each algorithm:
     for alg_entry in sorted(ALGORITHMS.items(), key=lambda e: e[0]):
         name = alg_entry[0]
-        algorithm = alg_entry[1]
+        algorithm = alg_entry[1](None)
         # Skip complex algorithms if duplicates data are allowed:
         if options["Duplicates"] and name in ["knn", "bagging-knn"]:
             continue
