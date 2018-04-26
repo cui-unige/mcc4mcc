@@ -144,7 +144,7 @@ def do_extract(arguments):
     }, sort_keys=True)
     hasher = hashlib.md5()
     hasher.update(bytearray(as_json, "utf8"))
-    prefix = hasher.hexdigest()[:16]
+    prefix = hasher.hexdigest()[:8]
     logging.info(f"Prefix is {prefix}.")
     with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
         output.write(as_json)
