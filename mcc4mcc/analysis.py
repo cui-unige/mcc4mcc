@@ -52,42 +52,6 @@ def characteristics_of(data, options):
     return result
 
 
-# def characteristics_of(characteristics):
-#     """
-#     Computes the interesting characteristics to remove.
-#     """
-#     result = {}
-#     all_characteristics = set({})
-#     for _, model in characteristics.items():
-#         for key in model.keys():
-#             all_characteristics.add(key)
-#     logging.info(f"Characteristics are:")
-#     for char in sorted(all_characteristics):
-#         logging.info(f"  * {char}")
-#     logging.info(f"  (Id is never taken into account)")
-#     logging.info(f"Computing models per characteristics set.")
-#     all_subsets = [x for x in powerset(all_characteristics)]
-#     with tqdm(total=len(all_subsets)) as counter:
-#         for subset in all_subsets:
-#             subresult = {}
-#             for id, model in characteristics.items():
-#                 stripped = dict(model)
-#                 for characteristic in subset:
-#                     del stripped[characteristic]
-#                 if "Id" in stripped:
-#                     del stripped["Id"]
-#                 stripped = frozendict(stripped)
-#                 if stripped not in subresult:
-#                     subresult[stripped] = []
-#                 subresult[stripped].append(id)
-#             result[subset] = subresult
-#             stats = statistics.mean([len(v) for k,v in subresult.items()])
-#             if stats > 2:
-#                 logging.info(f"  * {subset} ({stats})")
-#             counter.update(1)
-#     return result
-
-
 def choice_of(data, alg_or_tool, options):
     """
     Computes for each examination the repartition of choices.
