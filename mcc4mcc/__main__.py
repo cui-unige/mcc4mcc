@@ -6,6 +6,7 @@ Model Checker Collection for the Model Checking Contest.
 
 import argparse
 import hashlib
+import math
 import logging
 import os
 import random
@@ -18,7 +19,6 @@ import re
 import sys
 import tempfile
 import tarfile
-import numpy
 import pandas
 import xmltodict
 import docker
@@ -164,6 +164,7 @@ def do_extract(arguments):
         "Prefix": prefix,
         "Forget": arguments.forget,
         "Training": arguments.training,
+        "Score": arguments.score,
     }
     # Read data:
     data.characteristics()
@@ -174,7 +175,14 @@ def do_extract(arguments):
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
     # Compute maximum score:
-    logging.info(f"Maximum score is {max_score(data)}.")
+    maxs = max_score(data, options)
+    total_score = 0
+    for _, subscore in maxs.items():
+        total_score += subscore
+    logging.info(f"Maximum score is {total_score}:")
+    for examination in examinations:
+        score = maxs[examination]
+        logging.info(f"* {examination}: {score}")
     # Extract known data:
     known_data = known(data)
     with open(f"{arguments.data}/{prefix}-known.json", "w") as output:
@@ -197,7 +205,8 @@ def do_extract(arguments):
             subresult[key] = value
             total = total + value
         learned_data.append(subresult)
-        logging.info(f"  Score: {total}")
+        ratio = math.ceil(100*total/total_score)
+        logging.info(f"  Score: {total} / {total_score} ({ratio}%)")
     with open(f"{arguments.data}/{prefix}-learned.json", "w") as output:
         json.dump(learned_data, output)
     # Print per-examination scores:
@@ -213,12 +222,15 @@ def do_extract(arguments):
         e["Examination"], e["Score"], e["Name"]
     ), reverse=True)
     for examination in sorted(examinations):
-        logging.info(f"In {examination}:")
+        subscore = maxs[examination]
+        logging.info(f"In {examination}, maximum score {subscore}:")
         for element in [x for x in srt if x["Examination"] == examination]:
             score = element["Score"]
             name = element["Name"]
             if score > 0:
-                logging.info(f"* {score} for {name}.")
+                ratio = math.ceil(100*score/subscore)
+                logging.info(f"* {score} / {subscore} ({ratio}%) "
+                             f"for {name}.")
 
 
 def do_run(arguments):
@@ -515,20 +527,20 @@ def do_experiment(arguments):
     data.results()
     result = []
     if arguments.training:
-        for training in reversed(numpy.arange(0.05, 1.05, 0.05)):
+        for value in range(0, 100, 10):
+            training = 1 - (value / 100)
             logging.info(f"Running experiment with {training} training.")
-            subresult = learned(data, {
+            options = {
                 "Duplicates": arguments.duplicates,
                 "Training": training,
                 "Forget": [],
-            })[0]
+                "Score": arguments.score,
+            }
+            subresult = learned(data, options)[0]
             for entry in subresult:
-                result.append({
-                    "Duplicates": arguments.duplicates,
-                    "Training": training,
-                    "Forget": [],
-                    "Result": entry,
-                })
+                for okey, ovalue in options.items():
+                    entry[okey] = ovalue
+                result.append(entry)
     if arguments.forget:
         characteristics = []
         for characteristic in CHARACTERISTICS:
@@ -539,18 +551,17 @@ def do_experiment(arguments):
                 random.shuffle(characteristics)
                 forget = characteristics[:forget_n]
                 logging.info(f"Running experiment forgetting {forget}.")
-                subresult = learned(data, {
+                options = {
                     "Duplicates": arguments.duplicates,
                     "Training": 1.0,
                     "Forget": forget,
-                })[0]
+                    "Score": arguments.score,
+                }
+                subresult = learned(data, options)[0]
                 for entry in subresult:
-                    result.append({
-                        "Duplicates": arguments.duplicates,
-                        "Training": 1.0,
-                        "Forget": forget,
-                        "Result": entry,
-                    })
+                    for okey, ovalue in options.items():
+                        entry[okey] = ovalue
+                    result.append(entry)
     with open(f"{arguments.data}/experiment.json", "w") as output:
         output.write(json.dumps(result, sort_keys=True))
 
@@ -627,6 +638,13 @@ EXTRACT.add_argument(
     dest="training",
     type=float,
     default=1,
+)
+EXTRACT.add_argument(
+    "--score",
+    help="score computation type (mcc or time)",
+    dest="score",
+    type=str,
+    default="mcc",
 )
 EXTRACT.set_defaults(func=do_extract)
 
@@ -799,6 +817,13 @@ EXPERIMENT.add_argument(
     help="Vary the training rate",
     dest="training",
     action="store_true",
+)
+EXPERIMENT.add_argument(
+    "--score",
+    help="score computation type (mcc or time)",
+    dest="score",
+    type=str,
+    default="mcc",
 )
 EXPERIMENT.set_defaults(func=do_experiment)
 

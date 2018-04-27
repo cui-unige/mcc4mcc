@@ -3,6 +3,7 @@ Analysis of the results of the model checking contest.
 """
 
 import copy
+import math
 import logging
 import pickle
 import statistics
@@ -143,7 +144,7 @@ def choice_of(data, alg_or_tool, options):
 
 def score_of(data, alg_or_tool, options):
     """
-    Computes a score using the rules from the MCC.
+    Computes the score of a tool or an algorithm.
     """
     result = {}
     results = data.results()
@@ -188,7 +189,7 @@ def score_of(data, alg_or_tool, options):
                     dataframe = pandas.DataFrame([test])
                     predicted = alg_or_tool.predict(dataframe)
                     tool = values.from_learning(predicted[0])
-                subscore = 0
+                subscore = []
                 instances = {
                     x["Instance"] for x in for_model
                 }
@@ -198,41 +199,85 @@ def score_of(data, alg_or_tool, options):
                         if x["Instance"] == instance
                         and x["Tool"] == tool
                     ]
-                    if entries:
-                        subscore += 16
-                    best_time = [
-                        x for x in entries
-                        if x["Relative-Time"] == 1
-                    ]
-                    if best_time:
-                        subscore += 2
-                    best_memory = [
-                        x for x in entries
-                        if x["Relative-Memory"] == 1
-                    ]
-                    if best_memory:
-                        subscore += 2
-                subscore = subscore / len(instances)
-                result[examination] = result[examination] + subscore
+                    if not entries:
+                        subscore.append(0)
+                    elif options["Score"] == "mcc":
+                        value = 16
+                        best_time = [
+                            x for x in entries
+                            if x["Relative-Time"] == 1
+                        ]
+                        if best_time:
+                            value += 2
+                        best_memory = [
+                            x for x in entries
+                            if x["Relative-Memory"] == 1
+                        ]
+                        if best_memory:
+                            value += 2
+                        subscore.append(value)
+                    elif options["Score"] == "time":
+                        srt = sorted(entries, key=lambda e: e["Time"])
+                        value = 20*(1-srt[0]["Time"]/3600000)
+                        subscore.append(value)
+                result[examination] = result[examination] + \
+                    math.ceil(statistics.mean(subscore))
                 counter.update(1)
     for examination, value in result.items():
         result[examination] = int(value)
     return result
 
 
-def max_score(data):
+def max_score(data, options):
     """
-    Computes the maximum score using almost the rules from the MCC.
+    Computes the maximum score.
     """
-    result = 0
+    result = {}
     results = data.results()
     data.characteristics()
     examinations = {x["Examination"] for x in results}
     models = {x["Model"] for x in results}
-    for _ in examinations:
-        for _ in models:
-            result += 20
-    return int(result)
+    with tqdm(total=len(examinations)*len(models)) as counter:
+        for examination in examinations:
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
+            result[examination] = 0
+            for model in models:
+                for_model = [
+                    x for x in for_examination
+                    if x["Model"] is model
+                ]
+                if not for_model:
+                    counter.update(1)
+                    continue
+                subscore = []
+                instances = {
+                    x["Instance"] for x in for_model
+                }
+                for instance in instances:
+                    entries = [
+                        x for x in for_model
+                        if x["Instance"] == instance
+                    ]
+                    if not entries:
+                        subscore.append(0)
+                    elif options["Score"] == "mcc":
+                        subscore.append(20)
+                    elif options["Score"] == "time":
+                        best = None
+                        for entry in entries:
+                            if best is None:
+                                best = entry
+                            elif entry["Time"] < best["Time"]:
+                                best = entry
+                        value = 20*(1-best["Time"]/3600000)
+                        subscore.append(value)
+                result[examination] = result[examination] + \
+                    math.ceil(statistics.mean(subscore))
+                counter.update(1)
+    return result
 
 
 def known(data):
@@ -326,6 +371,12 @@ def learned(data, options):
     """
     Analyzes learned data.
     """
+    # Compute maximum score:
+    maxs = max_score(data, options)
+    total_score = 0
+    for _, subscore in maxs.items():
+        total_score += subscore
+    # Extract data:
     result = []
     results = data.results()
     data.characteristics()
@@ -416,7 +467,8 @@ def learned(data, options):
         for key, value in score.items():
             alg_results[key] = value
             total = total + value
-        logging.info(f"  Score: {total}")
+        ratio = math.ceil(100*total/total_score)
+        logging.info(f"  Score: {total} / {total_score} ({ratio}%)")
         result.append(alg_results)
         # Compute choice:
         if "Choice" in options and options["Choice"]:
