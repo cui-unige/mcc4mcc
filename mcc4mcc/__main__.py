@@ -720,7 +720,10 @@ def default_prefix():
             if filename.endswith("-configuration.json"):
                 search = re.search(r"^([^-]+)-configuration.json$", filename)
                 prefixes.append(search.group(1))
-        result = sorted(prefixes)[0]
+        if prefixes:
+            result = sorted(prefixes)[0]
+        else:
+            result = None
     return result
 
 
