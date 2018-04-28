@@ -6,21 +6,21 @@ case "${BK_TOOL}" in
       -m mcc4mcc \
       --data="/usr/share/mcc4mcc" \
       run \
-      --prefix="87bd5343c30a279e"
+      --prefix="65b80f64"
   ;;
   "mcc4mcc-structural")
     python3 \
       -m mcc4mcc \
       --data="/usr/share/mcc4mcc" \
       run \
-      --prefix="7e556e9247727f60"
+      --prefix="75f5f979"
   ;;
   "irma4mcc-full")
     python3 \
       -m mcc4mcc \
       --data="/usr/share/mcc4mcc" \
       run \
-      --prefix="87bd5343c30a279e" \
+      --prefix="65b80f64" \
       --cheat
   ;;
   "irma4mcc-structural")
@@ -28,7 +28,7 @@ case "${BK_TOOL}" in
       -m mcc4mcc \
       --data="/usr/share/mcc4mcc" \
       run \
-      --prefix="7e556e9247727f60" \
+      --prefix="75f5f979" \
       --cheat
   ;;
 esac
