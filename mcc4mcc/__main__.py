@@ -712,8 +712,11 @@ def default_prefix():
     """
     bk_tool = os.getenv("BK_TOOL")
     if bk_tool is not None:
-        search = re.search(r"^mcc4mcc-(.*)$", bk_tool)
-        result = search.group(1)
+        search = re.search(r"^(mcc|irma)4mcc-(.*)$", bk_tool)
+        if search is None:
+            result = None
+        else:
+            result = search.group(2)
     else:
         prefixes = []
         for filename in os.listdir(os.getcwd()):
