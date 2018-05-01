@@ -568,7 +568,7 @@ def do_experiment(arguments):
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s: %(message)s",
+    format="%(message)s",
 )
 
 PARSER = argparse.ArgumentParser(
