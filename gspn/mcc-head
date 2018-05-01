@@ -16,7 +16,7 @@ case "$BK_EXAMINATION" in
 		;;
 
 	*)
-		echo "$0: Wrong invocation:" >> $BK_LOG_FILE
+		echo "$0: Wrong invocation:"
 		echo 'DO_NOT_COMPETE'
 		exit 0
 		#exit 1
@@ -24,7 +24,6 @@ case "$BK_EXAMINATION" in
 esac
 
 
-rgmedd2Path="${GSPN_PATH}/RGMEDD2"
 varord="META"
 meddlyCache="67108864"
 
@@ -52,11 +51,8 @@ then
         exit 0
     fi
     #echo "Computing bounds, with a timeout of 30s"
-    timeout 30s "${GSPN_PATH}/struct" model -only-bnd -detect-exp
-    if [[ $? -ne "0" ]]
-    then
-        rm -f model.bnd model.pin
-    fi
+    timeout 30s struct model -only-bnd -detect-exp \
+			|| rm -f model.bnd model.pin
 fi
 
 if [[ -f model.bnd ]]
@@ -71,7 +67,7 @@ fi
 case $BK_EXAMINATION in
     StateSpace)
         #echo 'Computing state space'
-        MCC=1 $rgmedd2Path model -$varord -event-nsf -h $meddlyCache $boundParam
+        MCC=1 RGMEDD2 model -$varord -event-nsf -h $meddlyCache $boundParam
         ;;
     UpperBounds|Reachability*|CTL*)
         xmlFile="$BK_EXAMINATION.xml"
@@ -84,7 +80,7 @@ case $BK_EXAMINATION in
         #    echo "$BK_EXAMINATION formulas already converted. Using them"
         fi
         #echo "Evaluating $BK_EXAMINATION formulas"
-        MCC=1 $rgmedd2Path model -$varord -mono-nsf -h $meddlyCache $boundParam -C -f $ctlFile
+        MCC=1 RGMEDD2 model -$varord -mono-nsf -h $meddlyCache $boundParam -C -f $ctlFile
         ;;
     *)
         echo 'DO_NOT_COMPETE'
