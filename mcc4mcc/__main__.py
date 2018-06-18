@@ -599,7 +599,7 @@ def do_experiment(arguments):
             if characteristic not in REMOVE:
                 characteristics.append(characteristic)
         results = []
-        for forget_n in range(0, arguments.forget+1):
+        for forget_n in range(0, len(characteristics)+1):
             for _ in range(0, arguments.repeat):
                 random.shuffle(characteristics)
                 forget = characteristics[:forget_n]
@@ -914,10 +914,9 @@ EXPERIMENT.add_argument(
 )
 EXPERIMENT.add_argument(
     "--forget",
-    help="Forget at max this number of characteristics",
-    type=int,
+    help="Forget characteristics",
     dest="forget",
-    default=0,
+    action="store_true",
 )
 EXPERIMENT.add_argument(
     "--training",
@@ -927,13 +926,13 @@ EXPERIMENT.add_argument(
 )
 EXPERIMENT.add_argument(
     "--assess",
-    help="Assess n times the efficiency of algorithms",
+    help="Assess the efficiency of algorithms",
     dest="assess",
     action="store_true",
 )
 EXPERIMENT.add_argument(
     "--score",
-    help="score computation type (mcc or time)",
+    help="Score computation type (mcc or time)",
     dest="score",
     type=str,
     default="mcc",
