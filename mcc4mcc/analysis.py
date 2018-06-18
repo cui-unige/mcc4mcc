@@ -19,6 +19,7 @@ REMOVE = [
     "Id", "Model", "Instance", "Year",
     "Memory", "Time",
     "Parameterised", "Selected", "Surprise",
+    "Type", "Fixed size", "Origin", "Submitter", "Year",
 ]
 
 
@@ -49,7 +50,7 @@ def characteristics_of(data, options):
         result[stripped].append(identifier)
     stats = statistics.mean([len(v) for k, v in result.items()])
     logging.info(f"Mean models per characteristics set: {stats}.")
-    return result
+    return result, all_characteristics
 
 
 def choice_of(data, alg_or_tool, options):

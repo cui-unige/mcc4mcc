@@ -10,6 +10,7 @@ import math
 import logging
 import os
 import random
+import statistics
 # import getpass
 import json
 import pathlib
@@ -26,7 +27,6 @@ import docker
 from mcc4mcc.analysis import known, learned, score_of, max_score, \
     characteristics_of, REMOVE
 from mcc4mcc.model import Values, Data, value_of, CHARACTERISTICS
-
 
 VERDICTS = {
     "ORDINARY": "Ordinary",
@@ -525,8 +525,39 @@ def do_experiment(arguments):
     data.characteristics()
     # Use results:
     data.results()
-    result = []
+    # Compute maximum score:
+    maxs = max_score(data, {
+        "Duplicates": arguments.duplicates,
+        "Score": arguments.score,
+    })
+    if arguments.assess:
+        logging.info(f"Assess efficiency of algorithms.")
+        results = []
+        options = {
+            "Duplicates": arguments.duplicates,
+            "Training": 1,
+            "Forget": [],
+            "Score": arguments.score,
+        }
+        for _ in range(0, arguments.repeat):
+            subresult = learned(data, options)[0]
+            results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/assess-{algorithm}.dat", "w") \
+                    as output:
+                for entry in [
+                        x for x in results
+                        if x["Algorithm"] == algorithm
+                ]:
+                    examination = entry["Examination"]
+                    score = math.ceil(
+                        100*entry[examination] / maxs[examination]
+                    )
+                    output.write(str(examination) + "\t" + str(score) + "\n")
     if arguments.training:
+        results = []
         for value in range(0, 100, 10):
             training = 1 - (value / 100)
             logging.info(f"Running experiment with {training} training.")
@@ -536,18 +567,69 @@ def do_experiment(arguments):
                 "Forget": [],
                 "Score": arguments.score,
             }
-            subresult = learned(data, options)[0]
-            for entry in subresult:
-                for okey, ovalue in options.items():
-                    entry[okey] = ovalue
-                result.append(entry)
-    if arguments.forget:
+            for _ in range(0, arguments.repeat):
+                subresult = learned(data, options)[0]
+                for entry in subresult:
+                    entry["Training"] = training
+                results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/training-{algorithm}.dat", "w") \
+                    as output:
+                for entry in [
+                        x for x in results
+                        if x["Algorithm"] == algorithm
+                ]:
+                    training = entry["Training"]
+                    score = 0 \
+                        + entry["StateSpace"] \
+                        + entry["UpperBounds"] \
+                        + entry["ReachabilityDeadlock"] \
+                        + entry["ReachabilityCardinality"] \
+                        + entry["ReachabilityFireability"] \
+                        + entry["CTLCardinality"] \
+                        + entry["CTLFireability"] \
+                        + entry["LTLCardinality"] \
+                        + entry["LTLFireability"]
+                    output.write(str(training) + "\t" + str(score) + "\n")
+    if arguments.forget is not None:
         characteristics = []
         for characteristic in CHARACTERISTICS:
             if characteristic not in REMOVE:
                 characteristics.append(characteristic)
-        for forget_n in range(0, len(characteristics)+1):
-            for _ in range(0, arguments.forget):
+        results = []
+        for forget_n in range(0, arguments.forget+1):
+            for _ in range(0, arguments.repeat):
+                random.shuffle(characteristics)
+                forget = characteristics[:forget_n]
+                options = {
+                    "Duplicates": arguments.duplicates,
+                    "Training": 1.0,
+                    "Forget": forget,
+                    "Score": arguments.score,
+                }
+                subresult, subchars = characteristics_of(data, options)
+                stats = statistics.mean([len(v) for k, v in subresult.items()])
+                results.append({
+                    "Characteristics": len(subchars)-1,
+                    "Average": stats,
+                })
+        with open(f"{arguments.data}/characteristics.dat", "w") \
+                as output:
+            for entry in results:
+                output.write(
+                    str(entry["Characteristics"]) + "\t" +
+                    str(entry["Average"]) + "\n"
+                )
+    if arguments.forget is not None:
+        characteristics = []
+        for characteristic in CHARACTERISTICS:
+            if characteristic not in REMOVE:
+                characteristics.append(characteristic)
+        results = []
+        for forget_n in range(0, arguments.forget+1):
+            for _ in range(0, arguments.repeat):
                 random.shuffle(characteristics)
                 forget = characteristics[:forget_n]
                 logging.info(f"Running experiment forgetting {forget}.")
@@ -557,13 +639,32 @@ def do_experiment(arguments):
                     "Forget": forget,
                     "Score": arguments.score,
                 }
+                subresult, subchars = characteristics_of(data, options)
                 subresult = learned(data, options)[0]
                 for entry in subresult:
-                    for okey, ovalue in options.items():
-                        entry[okey] = ovalue
-                    result.append(entry)
-    with open(f"{arguments.data}/experiment.json", "w") as output:
-        output.write(json.dumps(result, sort_keys=True))
+                    entry["Characteristics"] = len(subchars)-1
+                results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/forget-{algorithm}.dat", "w") \
+                    as output:
+                for entry in [
+                        x for x in results
+                        if x["Algorithm"] == algorithm
+                ]:
+                    chars = entry["Characteristics"]
+                    score = 0 \
+                        + entry["StateSpace"] \
+                        + entry["UpperBounds"] \
+                        + entry["ReachabilityDeadlock"] \
+                        + entry["ReachabilityCardinality"] \
+                        + entry["ReachabilityFireability"] \
+                        + entry["CTLCardinality"] \
+                        + entry["CTLFireability"] \
+                        + entry["LTLCardinality"] \
+                        + entry["LTLFireability"]
+                    output.write(str(chars) + "\t" + str(score) + "\n")
 
 
 logging.basicConfig(
@@ -813,7 +914,7 @@ EXPERIMENT.add_argument(
 )
 EXPERIMENT.add_argument(
     "--forget",
-    help="Iterations in forgetting of characteristics",
+    help="Forget at max this number of characteristics",
     type=int,
     dest="forget",
     default=0,
@@ -825,11 +926,24 @@ EXPERIMENT.add_argument(
     action="store_true",
 )
 EXPERIMENT.add_argument(
+    "--assess",
+    help="Assess n times the efficiency of algorithms",
+    dest="assess",
+    action="store_true",
+)
+EXPERIMENT.add_argument(
     "--score",
     help="score computation type (mcc or time)",
     dest="score",
     type=str,
     default="mcc",
+)
+EXPERIMENT.add_argument(
+    "--repeat",
+    help="Repeat n times to compute mean efficiency",
+    type=int,
+    dest="repeat",
+    default=1,
 )
 EXPERIMENT.set_defaults(func=do_experiment)
 
