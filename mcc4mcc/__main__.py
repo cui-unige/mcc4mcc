@@ -525,6 +525,8 @@ def do_experiment(arguments):
     data.characteristics()
     # Use results:
     data.results()
+    # Get all examinations:
+    examinations = {x["Examination"] for x in data.results()}
     # Compute maximum score:
     maxs = max_score(data, {
         "Duplicates": arguments.duplicates,
@@ -547,15 +549,18 @@ def do_experiment(arguments):
         for algorithm in algorithms:
             with open(f"{arguments.data}/assess-{algorithm}.dat", "w") \
                     as output:
-                for entry in [
-                        x for x in results
-                        if x["Algorithm"] == algorithm
-                ]:
-                    examination = entry["Examination"]
-                    score = math.ceil(
-                        100*entry[examination] / maxs[examination]
-                    )
-                    output.write(str(examination) + "\t" + str(score) + "\n")
+                for examination in examinations:
+                    for entry in [
+                            x for x in results
+                            if x["Algorithm"] == algorithm
+                    ]:
+                        score = math.ceil(
+                            100 * entry[examination] / maxs[examination]
+                        )
+                        output.write(
+                            str(examination) + "\t" +
+                            str(score) + "\n"
+                        )
     if arguments.training:
         results = []
         for value in range(0, 100, 10):
@@ -628,7 +633,7 @@ def do_experiment(arguments):
             if characteristic not in REMOVE:
                 characteristics.append(characteristic)
         results = []
-        for forget_n in range(0, arguments.forget+1):
+        for forget_n in range(0, len(characteristics)+1):
             for _ in range(0, arguments.repeat):
                 random.shuffle(characteristics)
                 forget = characteristics[:forget_n]
