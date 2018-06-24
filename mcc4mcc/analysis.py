@@ -2,6 +2,8 @@
 Analysis of the results of the model checking contest.
 """
 
+import copy
+import math
 import logging
 import pickle
 import statistics
@@ -17,10 +19,11 @@ REMOVE = [
     "Id", "Model", "Instance", "Year",
     "Memory", "Time",
     "Parameterised", "Selected", "Surprise",
+    "Type", "Fixed size", "Origin", "Submitter", "Year",
 ]
 
 
-def characteristics_of(data):
+def characteristics_of(data, options):
     """
     Computes the average models per characteristics set.
     """
@@ -28,7 +31,7 @@ def characteristics_of(data):
     all_characteristics = set({})
     for _, model in data.characteristics().items():
         for key in model.keys():
-            if key not in data.configuration["forget"]:
+            if key not in options["Forget"]:
                 all_characteristics.add(key)
     logging.info(f"Characteristics taken into account are:")
     for char in sorted(all_characteristics):
@@ -37,7 +40,7 @@ def characteristics_of(data):
     result = {}
     for identifier, model in data.characteristics().items():
         stripped = dict(model)
-        for characteristic in data.configuration["forget"]:
+        for characteristic in options["Forget"]:
             del stripped[characteristic]
         if "Id" in stripped:
             del stripped["Id"]
@@ -47,46 +50,10 @@ def characteristics_of(data):
         result[stripped].append(identifier)
     stats = statistics.mean([len(v) for k, v in result.items()])
     logging.info(f"Mean models per characteristics set: {stats}.")
-    return result
+    return result, all_characteristics
 
 
-# def characteristics_of(characteristics):
-#     """
-#     Computes the interesting characteristics to remove.
-#     """
-#     result = {}
-#     all_characteristics = set({})
-#     for _, model in characteristics.items():
-#         for key in model.keys():
-#             all_characteristics.add(key)
-#     logging.info(f"Characteristics are:")
-#     for char in sorted(all_characteristics):
-#         logging.info(f"  * {char}")
-#     logging.info(f"  (Id is never taken into account)")
-#     logging.info(f"Computing models per characteristics set.")
-#     all_subsets = [x for x in powerset(all_characteristics)]
-#     with tqdm(total=len(all_subsets)) as counter:
-#         for subset in all_subsets:
-#             subresult = {}
-#             for id, model in characteristics.items():
-#                 stripped = dict(model)
-#                 for characteristic in subset:
-#                     del stripped[characteristic]
-#                 if "Id" in stripped:
-#                     del stripped["Id"]
-#                 stripped = frozendict(stripped)
-#                 if stripped not in subresult:
-#                     subresult[stripped] = []
-#                 subresult[stripped].append(id)
-#             result[subset] = subresult
-#             stats = statistics.mean([len(v) for k,v in subresult.items()])
-#             if stats > 2:
-#                 logging.info(f"  * {subset} ({stats})")
-#             counter.update(1)
-#     return result
-
-
-def choice_of(data, alg_or_tool, values=None):
+def choice_of(data, alg_or_tool, options):
     """
     Computes for each examination the repartition of choices.
     """
@@ -119,13 +86,15 @@ def choice_of(data, alg_or_tool, values=None):
                     tool = alg_or_tool
                 else:
                     test = {}
-                    if values is None:
+                    if "Values" in options:
+                        values = options["Values"]
+                    else:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
                     test["Relative-Time"] = 1  # FIXME
                     test["Relative-Memory"] = 1  # FIXME
                     for key, value in model.items():
-                        if key in data.configuration["forget"]:
+                        if key in options["Forget"]:
                             test[key] = values.to_learning(None)
                         elif key not in REMOVE \
                                 and key not in TECHNIQUES:
@@ -138,9 +107,9 @@ def choice_of(data, alg_or_tool, values=None):
     return result
 
 
-def score_of(data, alg_or_tool, values=None):
+def score_of(data, alg_or_tool, options):
     """
-    Computes a score using the rules from the MCC.
+    Computes the score of a tool or an algorithm.
     """
     result = {}
     results = data.results()
@@ -169,13 +138,15 @@ def score_of(data, alg_or_tool, values=None):
                     tool = alg_or_tool
                 else:
                     test = {}
-                    if values is None:
+                    if "Values" in options:
+                        values = options["Values"]
+                    else:
                         values = Values(None)
                     test["Examination"] = values.to_learning(examination)
                     test["Relative-Time"] = values.to_learning(1)  # FIXME
                     test["Relative-Memory"] = values.to_learning(1)  # FIXME
                     for key, value in model.items():
-                        if key in data.configuration["forget"]:
+                        if key in options["Forget"]:
                             test[key] = values.to_learning(None)
                         elif key not in REMOVE \
                                 and key not in TECHNIQUES:
@@ -183,7 +154,7 @@ def score_of(data, alg_or_tool, values=None):
                     dataframe = pandas.DataFrame([test])
                     predicted = alg_or_tool.predict(dataframe)
                     tool = values.from_learning(predicted[0])
-                subscore = 0
+                subscore = []
                 instances = {
                     x["Instance"] for x in for_model
                 }
@@ -193,41 +164,85 @@ def score_of(data, alg_or_tool, values=None):
                         if x["Instance"] == instance
                         and x["Tool"] == tool
                     ]
-                    if entries:
-                        subscore += 16
-                    best_time = [
-                        x for x in entries
-                        if x["Relative-Time"] == 1
-                    ]
-                    if best_time:
-                        subscore += 2
-                    best_memory = [
-                        x for x in entries
-                        if x["Relative-Memory"] == 1
-                    ]
-                    if best_memory:
-                        subscore += 2
-                subscore = subscore / len(instances)
-                result[examination] = result[examination] + subscore
+                    if not entries:
+                        subscore.append(0)
+                    elif options["Score"] == "mcc":
+                        value = 16
+                        best_time = [
+                            x for x in entries
+                            if x["Relative-Time"] == 1
+                        ]
+                        if best_time:
+                            value += 2
+                        best_memory = [
+                            x for x in entries
+                            if x["Relative-Memory"] == 1
+                        ]
+                        if best_memory:
+                            value += 2
+                        subscore.append(value)
+                    elif options["Score"] == "time":
+                        srt = sorted(entries, key=lambda e: e["Time"])
+                        value = 20*(1-srt[0]["Time"]/3600000)
+                        subscore.append(value)
+                result[examination] = result[examination] + \
+                    math.ceil(statistics.mean(subscore))
                 counter.update(1)
     for examination, value in result.items():
         result[examination] = int(value)
     return result
 
 
-def max_score(data):
+def max_score(data, options):
     """
-    Computes the maximum score using almost the rules from the MCC.
+    Computes the maximum score.
     """
-    result = 0
+    result = {}
     results = data.results()
     data.characteristics()
     examinations = {x["Examination"] for x in results}
     models = {x["Model"] for x in results}
-    for _ in examinations:
-        for _ in models:
-            result += 20
-    return int(result)
+    with tqdm(total=len(examinations)*len(models)) as counter:
+        for examination in examinations:
+            for_examination = [
+                x for x in results
+                if x["Examination"] == examination
+            ]
+            result[examination] = 0
+            for model in models:
+                for_model = [
+                    x for x in for_examination
+                    if x["Model"] is model
+                ]
+                if not for_model:
+                    counter.update(1)
+                    continue
+                subscore = []
+                instances = {
+                    x["Instance"] for x in for_model
+                }
+                for instance in instances:
+                    entries = [
+                        x for x in for_model
+                        if x["Instance"] == instance
+                    ]
+                    if not entries:
+                        subscore.append(0)
+                    elif options["Score"] == "mcc":
+                        subscore.append(20)
+                    elif options["Score"] == "time":
+                        best = None
+                        for entry in entries:
+                            if best is None:
+                                best = entry
+                            elif entry["Time"] < best["Time"]:
+                                best = entry
+                        value = 20*(1-best["Time"]/3600000)
+                        subscore.append(value)
+                result[examination] = result[examination] + \
+                    math.ceil(statistics.mean(subscore))
+                counter.update(1)
+    return result
 
 
 def known(data):
@@ -321,8 +336,12 @@ def learned(data, options):
     """
     Analyzes learned data.
     """
-    directory = options["Directory"]
-    prefix = options["Prefix"]
+    # Compute maximum score:
+    maxs = max_score(data, options)
+    total_score = 0
+    for _, subscore in maxs.items():
+        total_score += subscore
+    # Extract data:
     result = []
     results = data.results()
     data.characteristics()
@@ -336,6 +355,8 @@ def learned(data, options):
     all_models = list(models)
     shuffle(all_models)
     training = all_models[:int(len(models)*options["Training"])]
+    if not training:
+        training = all_models[0]
     if len(training) != len(models):
         logging.info(
             f"  Keeping only {len(training)} models of {len(models)}."
@@ -370,13 +391,13 @@ def learned(data, options):
         for entry in selected:
             s_entry = {}
             for key, value in entry.items():
-                if key in data.configuration["forget"]:
+                if key in options["Forget"]:
                     s_entry[key] = values.to_learning(None)
                 elif key not in REMOVE \
                         and key not in TECHNIQUES:
                     s_entry[key] = values.to_learning(value)
             for key, value in entry["Model"].items():
-                if key in data.configuration["forget"]:
+                if key in options["Forget"]:
                     s_entry[key] = values.to_learning(None)
                 elif key not in REMOVE:
                     s_entry[key] = values.to_learning(value)
@@ -392,7 +413,7 @@ def learned(data, options):
     # Compute efficiency for each algorithm:
     for alg_entry in sorted(ALGORITHMS.items(), key=lambda e: e[0]):
         name = alg_entry[0]
-        algorithm = alg_entry[1]
+        algorithm = alg_entry[1](None)
         # Skip complex algorithms if duplicates data are allowed:
         if options["Duplicates"] and name in ["knn", "bagging-knn"]:
             continue
@@ -403,33 +424,42 @@ def learned(data, options):
             "Is-Algorithm": True,
         }
         algorithm.fit(dataframe.drop("Tool", 1), dataframe["Tool"])
+        coptions = copy.copy(options)
+        coptions["Values"] = values
         # Compute score:
-        score = score_of(data, algorithm, values)
+        score = score_of(data, algorithm, coptions)
         total = 0
         for key, value in score.items():
             alg_results[key] = value
             total = total + value
-        logging.info(f"  Score: {total}")
+        ratio = math.ceil(100*total/total_score)
+        logging.info(f"  Score: {total} / {total_score} ({ratio}%)")
         result.append(alg_results)
         # Compute choice:
-        choice = choice_of(data, algorithm, values)
-        for examination in sorted(examinations):
-            logging.info(f"  In {examination}:")
-            srt = sorted(
-                choice[examination].items(),
-                key=lambda e: e[1],
-                reverse=True
-            )
-            for entry in srt:
-                tool = entry[0]
-                value = entry[1]
-                if value > 0:
-                    logging.info(f"  * {tool} is chosen {value} times")
+        if "Choice" in options and options["Choice"]:
+            choice = choice_of(data, algorithm, coptions)
+            for examination in sorted(examinations):
+                logging.info(f"  In {examination}:")
+                srt = sorted(
+                    choice[examination].items(),
+                    key=lambda e: e[1],
+                    reverse=True
+                )
+                for entry in srt:
+                    tool = entry[0]
+                    value = entry[1]
+                    if value > 0:
+                        logging.info(f"  * {tool} is chosen {value} times")
         # Store algorithm:
-        with open(f"{directory}/{prefix}-learned.{name}.p", "wb") as output:
-            pickle.dump(algorithm, output)
+        if "Directory" in options and "Prefix" in options:
+            directory = options["Directory"]
+            prefix = options["Prefix"]
+            with open(f"{directory}/{prefix}-learned.{name}.p", "wb") \
+                    as output:
+                pickle.dump(algorithm, output)
         # Output decision tree and random forest to graphviz:
-        if options["Output Trees"] \
+        if "Output Trees" in options \
+                and options["Output Trees"] \
                 and name in ["decision-tree", "random-forest"]:
             tree.export_graphviz(
                 algorithm,

@@ -6,8 +6,11 @@ Model Checker Collection for the Model Checking Contest.
 
 import argparse
 import hashlib
+import math
 import logging
 import os
+import random
+import statistics
 # import getpass
 import json
 import pathlib
@@ -22,9 +25,8 @@ import xmltodict
 import docker
 
 from mcc4mcc.analysis import known, learned, score_of, max_score, \
-    characteristics_of
-from mcc4mcc.model import Values, Data, value_of
-
+    characteristics_of, REMOVE
+from mcc4mcc.model import Values, Data, value_of, CHARACTERISTICS
 
 VERDICTS = {
     "ORDINARY": "Ordinary",
@@ -142,47 +144,57 @@ def do_extract(arguments):
     }, sort_keys=True)
     hasher = hashlib.md5()
     hasher.update(bytearray(as_json, "utf8"))
-    prefix = hasher.hexdigest()[:16]
+    prefix = hasher.hexdigest()[:8]
     logging.info(f"Prefix is {prefix}.")
     with open(f"{arguments.data}/{prefix}-configuration.json", "w") as output:
-        json.dump(as_json, output)
+        output.write(as_json)
     # Load data:
     data = Data({
         "characteristics": arguments.characteristics,
         "results": arguments.results,
         "renaming": RENAMING,
-        "forget": arguments.forget,
         "exclude": arguments.exclude,
         "year": arguments.year,
     })
+    options = {
+        "Choice": True,
+        "Duplicates": arguments.duplicates,
+        "Output Trees": arguments.output_trees,
+        "Directory": arguments.data,
+        "Prefix": prefix,
+        "Forget": arguments.forget,
+        "Training": arguments.training,
+        "Score": arguments.score,
+    }
     # Read data:
     data.characteristics()
     # Compute the characteristics for models:
-    characteristics_of(data)
+    characteristics_of(data, options)
     # Use results:
     data.results()
     examinations = {x["Examination"] for x in data.results()}
     tools = {x["Tool"] for x in data.results()}
     # Compute maximum score:
-    logging.info(f"Maximum score is {max_score(data)}.")
+    maxs = max_score(data, options)
+    total_score = 0
+    for _, subscore in maxs.items():
+        total_score += subscore
+    logging.info(f"Maximum score is {total_score}:")
+    for examination in examinations:
+        score = maxs[examination]
+        logging.info(f"* {examination}: {score}")
     # Extract known data:
     known_data = known(data)
     with open(f"{arguments.data}/{prefix}-known.json", "w") as output:
         json.dump(known_data, output)
     # Extract learned data:
-    learned_data, values = learned(data, {
-        "Duplicates": arguments.duplicates,
-        "Output Trees": arguments.output_trees,
-        "Directory": arguments.data,
-        "Prefix": prefix,
-        "Training": arguments.training,
-    })
+    learned_data, values = learned(data, options)
     with open(f"{arguments.data}/{prefix}-values.json", "w") as output:
         json.dump(values.items, output)
     # Compute scores for tools:
     for tool in sorted(tools):
         logging.info(f"Computing score of tool: {tool}.")
-        score = score_of(data, tool)
+        score = score_of(data, tool, options)
         subresult = {
             "Algorithm": tool,
             "Is-Tool": True,
@@ -193,7 +205,8 @@ def do_extract(arguments):
             subresult[key] = value
             total = total + value
         learned_data.append(subresult)
-        logging.info(f"  Score: {total}")
+        ratio = math.ceil(100*total/total_score)
+        logging.info(f"  Score: {total} / {total_score} ({ratio}%)")
     with open(f"{arguments.data}/{prefix}-learned.json", "w") as output:
         json.dump(learned_data, output)
     # Print per-examination scores:
@@ -209,12 +222,15 @@ def do_extract(arguments):
         e["Examination"], e["Score"], e["Name"]
     ), reverse=True)
     for examination in sorted(examinations):
-        logging.info(f"In {examination}:")
+        subscore = maxs[examination]
+        logging.info(f"In {examination}, maximum score {subscore}:")
         for element in [x for x in srt if x["Examination"] == examination]:
             score = element["Score"]
             name = element["Name"]
             if score > 0:
-                logging.info(f"* {score} for {name}.")
+                ratio = math.ceil(100*score/subscore)
+                logging.info(f"* {score} / {subscore} ({ratio}%) "
+                             f"for {name}.")
 
 
 def do_run(arguments):
@@ -266,10 +282,10 @@ def do_run(arguments):
         }]
     else:
         # Find known tools:
-        if known_data[arguments.examination] is not None:
-            if known_data[arguments.examination][instance] is not None:
+        if arguments.examination not in known_data:
+            if instance not in known_data[arguments.examination]:
                 known_tools = known_data[arguments.examination][instance]
-            elif known_data[arguments.examination][model] is not None:
+            elif model not in known_data[arguments.examination]:
                 known_tools = known_data[arguments.examination][model]
     if known_tools is None:
         logging.warning(
@@ -410,7 +426,6 @@ def do_test(arguments):
         "results": arguments.results,
         "renaming": RENAMING,
         "year": arguments.year,
-        "forget": [],
         "exclude": [],
     })
     # Read data:
@@ -494,9 +509,172 @@ def do_test(arguments):
             logging.info(f"  {tool}: {value}")
 
 
+def do_experiment(arguments):
+    """
+    Main function for the experiment command.
+    """
+    # Load data:
+    data = Data({
+        "characteristics": arguments.characteristics,
+        "results": arguments.results,
+        "renaming": RENAMING,
+        "exclude": [],
+        "year": arguments.year,
+    })
+    # Read data:
+    data.characteristics()
+    # Use results:
+    data.results()
+    # Get all examinations:
+    examinations = {x["Examination"] for x in data.results()}
+    # Compute maximum score:
+    maxs = max_score(data, {
+        "Duplicates": arguments.duplicates,
+        "Score": arguments.score,
+    })
+    if arguments.assess:
+        logging.info(f"Assess efficiency of algorithms.")
+        results = []
+        options = {
+            "Duplicates": arguments.duplicates,
+            "Training": 1,
+            "Forget": [],
+            "Score": arguments.score,
+        }
+        for _ in range(0, arguments.repeat):
+            subresult = learned(data, options)[0]
+            results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/assess-{algorithm}.dat", "w") \
+                    as output:
+                for examination in examinations:
+                    for entry in [
+                            x for x in results
+                            if x["Algorithm"] == algorithm
+                    ]:
+                        score = math.ceil(
+                            100 * entry[examination] / maxs[examination]
+                        )
+                        output.write(
+                            str(examination) + "\t" +
+                            str(score) + "\n"
+                        )
+    if arguments.training:
+        results = []
+        for value in range(0, 100, 10):
+            training = 1 - (value / 100)
+            logging.info(f"Running experiment with {training} training.")
+            options = {
+                "Duplicates": arguments.duplicates,
+                "Training": training,
+                "Forget": [],
+                "Score": arguments.score,
+            }
+            for _ in range(0, arguments.repeat):
+                subresult = learned(data, options)[0]
+                for entry in subresult:
+                    entry["Training"] = training
+                results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/training-{algorithm}.dat", "w") \
+                    as output:
+                for entry in [
+                        x for x in results
+                        if x["Algorithm"] == algorithm
+                ]:
+                    training = entry["Training"]
+                    score = 0 \
+                        + entry["StateSpace"] \
+                        + entry["UpperBounds"] \
+                        + entry["ReachabilityDeadlock"] \
+                        + entry["ReachabilityCardinality"] \
+                        + entry["ReachabilityFireability"] \
+                        + entry["CTLCardinality"] \
+                        + entry["CTLFireability"] \
+                        + entry["LTLCardinality"] \
+                        + entry["LTLFireability"]
+                    output.write(str(training) + "\t" + str(score) + "\n")
+    if arguments.forget is not None:
+        characteristics = []
+        for characteristic in CHARACTERISTICS:
+            if characteristic not in REMOVE:
+                characteristics.append(characteristic)
+        results = []
+        for forget_n in range(0, len(characteristics)+1):
+            for _ in range(0, arguments.repeat):
+                random.shuffle(characteristics)
+                forget = characteristics[:forget_n]
+                options = {
+                    "Duplicates": arguments.duplicates,
+                    "Training": 1.0,
+                    "Forget": forget,
+                    "Score": arguments.score,
+                }
+                subresult, subchars = characteristics_of(data, options)
+                stats = statistics.mean([len(v) for k, v in subresult.items()])
+                results.append({
+                    "Characteristics": len(subchars)-1,
+                    "Average": stats,
+                })
+        with open(f"{arguments.data}/characteristics.dat", "w") \
+                as output:
+            for entry in results:
+                output.write(
+                    str(entry["Characteristics"]) + "\t" +
+                    str(entry["Average"]) + "\n"
+                )
+    if arguments.forget is not None:
+        characteristics = []
+        for characteristic in CHARACTERISTICS:
+            if characteristic not in REMOVE:
+                characteristics.append(characteristic)
+        results = []
+        for forget_n in range(0, len(characteristics)+1):
+            for _ in range(0, arguments.repeat):
+                random.shuffle(characteristics)
+                forget = characteristics[:forget_n]
+                logging.info(f"Running experiment forgetting {forget}.")
+                options = {
+                    "Duplicates": arguments.duplicates,
+                    "Training": 1.0,
+                    "Forget": forget,
+                    "Score": arguments.score,
+                }
+                subresult, subchars = characteristics_of(data, options)
+                subresult = learned(data, options)[0]
+                for entry in subresult:
+                    entry["Characteristics"] = len(subchars)-1
+                results = results + subresult
+        # Output:
+        algorithms = {x["Algorithm"] for x in results}
+        for algorithm in algorithms:
+            with open(f"{arguments.data}/forget-{algorithm}.dat", "w") \
+                    as output:
+                for entry in [
+                        x for x in results
+                        if x["Algorithm"] == algorithm
+                ]:
+                    chars = entry["Characteristics"]
+                    score = 0 \
+                        + entry["StateSpace"] \
+                        + entry["UpperBounds"] \
+                        + entry["ReachabilityDeadlock"] \
+                        + entry["ReachabilityCardinality"] \
+                        + entry["ReachabilityFireability"] \
+                        + entry["CTLCardinality"] \
+                        + entry["CTLFireability"] \
+                        + entry["LTLCardinality"] \
+                        + entry["LTLFireability"]
+                    output.write(str(chars) + "\t" + str(score) + "\n")
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s: %(message)s",
+    format="%(message)s",
 )
 
 PARSER = argparse.ArgumentParser(
@@ -567,6 +745,13 @@ EXTRACT.add_argument(
     type=float,
     default=1,
 )
+EXTRACT.add_argument(
+    "--score",
+    help="score computation type (mcc or time)",
+    dest="score",
+    type=str,
+    default="mcc",
+)
 EXTRACT.set_defaults(func=do_extract)
 
 TEST = SUBPARSERS.add_parser(
@@ -633,15 +818,21 @@ def default_prefix():
     """
     bk_tool = os.getenv("BK_TOOL")
     if bk_tool is not None:
-        search = re.search(r"^mcc4mcc-(.*)$", bk_tool)
-        result = search.group(1)
+        search = re.search(r"^(mcc|irma)4mcc-(.*)$", bk_tool)
+        if search is None:
+            result = None
+        else:
+            result = search.group(2)
     else:
         prefixes = []
         for filename in os.listdir(os.getcwd()):
             if filename.endswith("-configuration.json"):
                 search = re.search(r"^([^-]+)-configuration.json$", filename)
                 prefixes.append(search.group(1))
-        result = sorted(prefixes)[0]
+        if prefixes:
+            result = sorted(prefixes)[0]
+        else:
+            result = None
     return result
 
 
@@ -695,6 +886,71 @@ RUN.add_argument(
     action="store_true",
 )
 RUN.set_defaults(func=do_run)
+
+EXPERIMENT = SUBPARSERS.add_parser(
+    "experiment",
+    description="Experiment",
+)
+EXPERIMENT.add_argument(
+    "--results",
+    help="path to the results of the model checking contest",
+    type=str,
+    dest="results",
+    default=os.getcwd() + "/results.csv",
+)
+EXPERIMENT.add_argument(
+    "--characteristics",
+    help="path to the model characteristics from the Petri net repository",
+    type=str,
+    dest="characteristics",
+    default=os.getcwd() + "/characteristics.csv",
+)
+EXPERIMENT.add_argument(
+    "--year",
+    help="Use results for a specific year (YYYY format).",
+    type=int,
+    dest="year",
+)
+EXPERIMENT.add_argument(
+    "--duplicates",
+    help="Allow duplicate entries",
+    dest="duplicates",
+    action="store_true"
+)
+EXPERIMENT.add_argument(
+    "--forget",
+    help="Forget characteristics",
+    dest="forget",
+    action="store_true",
+)
+EXPERIMENT.add_argument(
+    "--training",
+    help="Vary the training rate",
+    dest="training",
+    action="store_true",
+)
+EXPERIMENT.add_argument(
+    "--assess",
+    help="Assess the efficiency of algorithms",
+    dest="assess",
+    action="store_true",
+)
+EXPERIMENT.add_argument(
+    "--score",
+    help="Score computation type (mcc or time)",
+    dest="score",
+    type=str,
+    default="mcc",
+)
+EXPERIMENT.add_argument(
+    "--repeat",
+    help="Repeat n times to compute mean efficiency",
+    type=int,
+    dest="repeat",
+    default=1,
+)
+EXPERIMENT.set_defaults(func=do_experiment)
+
 
 ARGUMENTS = PARSER.parse_args()
 if "func" in ARGUMENTS:

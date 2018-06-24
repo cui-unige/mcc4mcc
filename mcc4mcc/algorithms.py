@@ -137,52 +137,63 @@ def knn_distance(lhs, rhs, bound=2):
 # should be used on big data sets.
 ALGORITHMS = {}
 
-ALGORITHMS["knn"] = KNeighborsClassifier(
-    n_neighbors=10,
-    weights="distance",
-    metric=knn_distance,
-)
-
-ALGORITHMS["bagging-knn"] = BaggingClassifier(
+ALGORITHMS["knn"] = lambda _: \
     KNeighborsClassifier(
         n_neighbors=10,
         weights="distance",
-        metric=knn_distance
-    ),
-    max_samples=0.5,
-    max_features=1,
-    n_estimators=10,
-)
+        metric=knn_distance,
+    )
 
-ALGORITHMS["ada-boost"] = AdaBoostClassifier()
+ALGORITHMS["bagging-knn"] = lambda _: \
+    BaggingClassifier(
+        KNeighborsClassifier(
+            n_neighbors=10,
+            weights="distance",
+            metric=knn_distance
+        ),
+        max_samples=0.5,
+        max_features=1,
+        n_estimators=10,
+    )
 
-ALGORITHMS["naive-bayes"] = GaussianNB()
+ALGORITHMS["ada-boost"] = lambda _: \
+    AdaBoostClassifier()
 
-ALGORITHMS["svm"] = SVC()
+ALGORITHMS["naive-bayes"] = lambda _: \
+    GaussianNB()
 
-ALGORITHMS["linear-svm"] = LinearSVC()
+ALGORITHMS["svm"] = lambda _: \
+    SVC()
 
-ALGORITHMS["decision-tree"] = DecisionTreeClassifier()
+ALGORITHMS["linear-svm"] = lambda _: \
+    LinearSVC()
 
-ALGORITHMS["random-forest"] = RandomForestClassifier(
-    n_estimators=30,
-    max_features=None,
-)
+ALGORITHMS["decision-tree"] = lambda _: \
+    DecisionTreeClassifier()
 
-ALGORITHMS["neural-network"] = MLPClassifier(
-    solver="lbfgs",
-)
+ALGORITHMS["random-forest"] = lambda _: \
+    RandomForestClassifier(
+        n_estimators=30,
+        max_features=None,
+    )
 
-ALGORITHMS["voting-classifier"] = VotingClassifier(
-    [
-        ("decision-tree", DecisionTreeClassifier()),
-        ("random-forest", RandomForestClassifier(
-            n_estimators=30,
-            max_features=None,
-        )),
-        ("svm", SVC(probability=True)),
-    ],
-    voting="soft"
-)
+ALGORITHMS["neural-network"] = lambda _: \
+    MLPClassifier(
+        solver="lbfgs",
+    )
 
-ALGORITHMS["bmdt"] = BMDT()
+ALGORITHMS["voting-classifier"] = lambda _: \
+    VotingClassifier(
+        [
+            ("decision-tree", DecisionTreeClassifier()),
+            ("random-forest", RandomForestClassifier(
+                n_estimators=30,
+                max_features=None,
+            )),
+            ("svm", SVC(probability=True)),
+        ],
+        voting="soft"
+    )
+
+ALGORITHMS["bmdt"] = lambda _: \
+    BMDT()
