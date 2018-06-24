@@ -282,10 +282,10 @@ def do_run(arguments):
         }]
     else:
         # Find known tools:
-        if known_data[arguments.examination] is not None:
-            if known_data[arguments.examination][instance] is not None:
+        if arguments.examination not in known_data:
+            if instance not in known_data[arguments.examination]:
                 known_tools = known_data[arguments.examination][instance]
-            elif known_data[arguments.examination][model] is not None:
+            elif model not in known_data[arguments.examination]:
                 known_tools = known_data[arguments.examination][model]
     if known_tools is None:
         logging.warning(
