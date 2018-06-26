@@ -113,6 +113,9 @@ venv.bak/
 *-values.json
 experiment.json
 
+# Generated files from experiments
+*.dat
+
 # Virtual images:
 *.vmdk.bz2
 *.vmdk
