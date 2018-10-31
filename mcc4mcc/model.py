@@ -109,8 +109,7 @@ class Values:
                 self.items[what] = self.next_id
                 self.next_id -= 1
             return self.items[what]
-        else:
-            return what
+        return what
 
     def from_learning(self, what):
         """
